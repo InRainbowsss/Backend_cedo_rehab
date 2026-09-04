@@ -1,0 +1,2379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Gestión Clínica y Horarios CEDO-REHAB</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    .color-melon { background-color: #fde2e4 !important; border-color: #f8ad9d !important; color: #6e4450 !important; }
+    .color-verde { background-color: #d8f3dc !important; border-color: #74c69d !important; color: #1b4332 !important; }
+    .color-amarillo { background-color: #fef9c3 !important; border-color: #fde047 !important; color: #713f12 !important; }
+    .color-fucsia { background-color: #f3e8ff !important; border-color: #c084fc !important; color: #581c87 !important; }
+    .color-azul { background-color: #e0f2fe !important; border-color: #7dd3fc !important; color: #0369a1 !important; }
+    .color-anaranjado { background-color: #ffedd5 !important; border-color: #fb923c !important; color: #9a3412 !important; }
+    .feriado-rojo { background-color: #f87171 !important; color: white !important; }
+    .laboral-verde { background-color: #d8f3dc !important; border-color: #74c69d !important; color: #1b4332 !important; }
+    
+    .fila-contenedor { position: relative; }
+    .btn-insertar-fila {
+      position: absolute;
+      left: -22px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      background-color: #10b981;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 10;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    tr.fila-item:hover .btn-insertar-fila {
+      opacity: 1;
+    }
+    textarea.auto-expand { resize: vertical; min-height: 80px; }
+
+    .ter-checkbox-box {
+      width: 18px;
+      height: 18px;
+      background-color: #e5e7eb;
+      border: 1px solid #9ca3af;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ter-checkbox-box.checked::after {
+      content: "X";
+      color: #1f2937;
+    }
+
+    /* Estilo para los botones de boleta por terapia (1-10) */
+    .boleta-terapia-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: bold;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid #cbd5e1;
+      background-color: #f1f5f9;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .boleta-terapia-btn.emitida {
+      background-color: #059669;
+      color: white;
+      border-color: #047857;
+    }
+    
+    @media print {
+      body { font-size: 9pt; background: white; }
+      .no-print { display: none !important; }
+      aside { display: none !important; }
+      main { padding: 0 !important; overflow: visible !important; height: auto !important; }
+      
+      #sec-terapias { display: block !important; }
+      #sec-terapias .print-a5-horizontal {
+        width: 210mm;
+        height: 148mm;
+        margin: 0 auto;
+        padding: 5mm;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+
+      #sec-historias { display: block !important; }
+      #sec-historias .print-a4-vertical-hc {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 10mm;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex h-screen overflow-hidden font-sans text-xs">
+
+  <div id="modal-clave" class="fixed inset-0 bg-slate-900 bg-opacity-75 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-xl w-80 space-y-4 shadow-2xl text-center">
+      <div class="text-emerald-600 text-3xl mb-1"><i class="fa-solid fa-lock"></i></div>
+      <h3 class="font-bold text-gray-800 text-sm">Ingrese Clave de Acceso</h3>
+      <p class="text-gray-500 text-[11px]">Sistema protegido. Introduzca su clave para continuar.</p>
+      <input type="password" id="input-clave" placeholder="Clave..." class="w-full p-2 border rounded text-center text-sm font-bold tracking-widest outline-none focus:ring-2 focus:ring-emerald-500" maxlength="4">
+      <button onclick="verificarClave()" class="w-full bg-emerald-600 text-white py-2 rounded font-bold hover:bg-emerald-700 shadow">Ingresar</button>
+      <p id="error-clave" class="text-red-500 text-[10px] hidden font-semibold">Clave incorrecta. (Clave: 2399).</p>
+    </div>
+  </div>
+
+  <aside class="w-64 bg-slate-800 text-white flex flex-col justify-between p-4 shadow-lg shrink-0 no-print">
+    <div>
+      <h1 class="text-base font-bold mb-6 text-center text-emerald-400 border-b border-slate-700 pb-3">
+        <i class="fa-solid fa-notes-medical mr-2"></i>CEDO-REHAB
+      </h1>
+      <nav class="space-y-1.5 text-xs">
+        <button onclick="cambiarPestaña('agenda')" id="btn-agenda" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium bg-slate-700 text-emerald-400">
+          <i class="fa-solid fa-calendar-days w-5 mr-2"></i> Horario y Agenda
+        </button>
+        <button onclick="cambiarPestaña('registro')" id="btn-registro" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-user-plus w-5 mr-2"></i> Registro de Paciente
+        </button>
+        <button onclick="cambiarPestaña('historias')" id="btn-historias" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-file-medical w-5 mr-2"></i> Historia Clínica / Ficha
+        </button>
+        <button onclick="cambiarPestaña('terapias')" id="btn-terapias" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-heart-pulse w-5 mr-2"></i> Ficha de Terapias
+        </button>
+        <button onclick="cambiarPestaña('asistencia')" id="btn-asistencia" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-list-check w-5 mr-2"></i> Asistencia / Paquetes & Boletas
+        </button>
+        <button onclick="cambiarPestaña('inventario')" id="btn-inventario" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-boxes-stacked w-5 mr-2"></i> Inventario
+        </button>
+        <button onclick="cambiarPestaña('rencuentro-inventario')" id="btn-rencuentro-inventario" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-calendar-check w-5 mr-2"></i> Rencuentro de Inventario
+        </button>
+        <button onclick="cambiarPestaña('finanzas')" id="btn-finanzas" class="tab-btn w-full flex items-center p-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-slate-300">
+          <i class="fa-solid fa-wallet w-5 mr-2"></i> Finanzas
+        </button>
+      </nav>
+    </div>
+  </aside>
+
+  <main class="flex-1 overflow-y-auto p-4 flex flex-col">
+
+    <section id="sec-agenda" class="space-y-4 flex-1 flex flex-col">
+      <div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border flex-wrap gap-2 no-print">
+        <div class="flex items-center space-x-3">
+          <h2 class="text-lg font-extrabold text-slate-800">HORARIO Y AGENDA - HORAS INDEPENDIENTES POR DÍA</h2>
+        </div>
+        <div class="flex items-center space-x-2">
+          <select id="select-anio-activo" onchange="cambiarAnio(this.value)" class="p-1.5 border rounded font-bold text-xs bg-gray-50 text-slate-800">
+          </select>
+        </div>
+        <div id="nav-meses" class="flex space-x-1 overflow-x-auto pb-1 w-full"></div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow-md border flex-1 overflow-auto pl-6">
+        <div id="tabla-horario-container" class="min-w-[1100px]"></div>
+      </div>
+    </section>
+
+    <section id="sec-registro" class="space-y-4 hidden">
+      <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Registro y Recepción de Pacientes</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 bg-white p-4 rounded-xl shadow-md border space-y-3">
+          <h3 id="titulo-form-paciente" class="font-semibold text-gray-700">Datos del Paciente</h3>
+          <input type="hidden" id="reg-id-editando" value="">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="font-medium text-gray-600">Nombre Completo</label>
+              <input type="text" id="reg-nombre" class="w-full p-2 border rounded mt-1">
+            </div>
+            <div>
+              <label class="font-medium text-gray-600">Edad</label>
+              <input type="number" id="reg-edad" oninput="verificarEdadMenor()" class="w-full p-2 border rounded mt-1">
+            </div>
+            <div>
+              <label class="font-medium text-gray-600">DNI</label>
+              <input type="text" id="reg-dni" class="w-full p-2 border rounded mt-1">
+            </div>
+            <div>
+              <label class="font-medium text-gray-600">Celular</label>
+              <input type="text" id="reg-celular" class="w-full p-2 border rounded mt-1">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="font-medium text-gray-600">Fecha de Ingreso</label>
+              <input type="date" id="reg-fecha-ingreso" class="w-full p-2 border rounded mt-1">
+            </div>
+            <div id="div-dni-apoderado" class="hidden">
+              <label class="font-medium text-red-600 font-bold">DNI de Apoderado (Menor de 18 años)</label>
+              <input type="text" id="reg-dni-apoderado" placeholder="DNI del responsable" class="w-full p-2 border rounded mt-1 border-red-300">
+            </div>
+          </div>
+          <div class="bg-gray-50 p-3 rounded-lg border space-y-2">
+            <label class="font-bold text-gray-700 block text-xs">¿Consulta médica requerida?</label>
+            <div class="flex items-center space-x-6">
+              <label class="flex items-center space-x-2 cursor-pointer font-bold">
+                <input type="radio" name="reg-consulta-opcion" value="pre-consulta" onchange="toggleCostoConsultaRegistro('pre-consulta')" class="text-emerald-600 w-4 h-4">
+                <span>PRE-CONSULTA</span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer font-bold">
+                <input type="radio" name="reg-consulta-opcion" value="post-consulta" onchange="toggleCostoConsultaRegistro('post-consulta')" class="text-emerald-600 w-4 h-4">
+                <span>POST-CONSULTA</span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer font-bold">
+                <input type="radio" name="reg-consulta-opcion" value="no" onchange="toggleCostoConsultaRegistro('no')" class="text-emerald-600 w-4 h-4" checked>
+                <span>NO</span>
+              </label>
+            </div>
+            <div id="div-costo-consulta-reg" class="hidden pt-2">
+              <label class="font-medium text-gray-600 text-[11px]">Costo de Consulta (S/.)</label>
+              <input type="number" id="reg-costo-consulta" value="50" oninput="sincronizarCostoConsultaReg(this.value)" class="w-full p-1.5 border rounded mt-1 font-bold text-emerald-700 bg-white">
+            </div>
+          </div>
+
+          <div class="flex space-x-2 pt-2">
+            <button onclick="guardarPaciente()" id="btn-guardar-paciente" class="flex-1 bg-emerald-600 text-white py-2.5 rounded font-bold hover:bg-emerald-700 shadow">
+              Registrar y Derivar
+            </button>
+            <button onclick="cancelarEdicionPaciente()" id="btn-cancelar-edicion" class="hidden px-4 bg-gray-300 text-gray-700 py-2.5 rounded font-bold hover:bg-gray-400">
+              Cancelar
+            </button>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border flex flex-col">
+          <h3 class="font-semibold text-gray-700 mb-2">Pacientes en Sistema</h3>
+          <div id="lista-pacientes-registro" class="space-y-2 overflow-y-auto flex-1 max-h-[380px]"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-historias" class="space-y-4 hidden">
+      <div class="flex justify-between items-center border-b pb-2 flex-wrap gap-2 no-print">
+        <h2 class="text-lg font-bold text-gray-800">Ficha e Historia Clínica General (A4 Vertical)</h2>
+        <div class="flex items-center space-x-2 flex-wrap gap-2">
+          <button onclick="abrirModalColorExtra()" class="bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700 font-medium text-xs">
+            <i class="fa-solid fa-palette mr-1"></i> Agregar Color
+          </button>
+          <button onclick="actualizarDatosHistoriaGeneral()" class="bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-700 font-medium text-xs">
+            <i class="fa-solid fa-rotate mr-1"></i> Actualizar
+          </button>
+          <input type="text" id="buscador-historia-general" placeholder="Buscar por Nombre o DNI..." oninput="filtrarHistoriasPorTexto(this.value)" class="p-1.5 border rounded text-xs w-48">
+          <select id="select-historia-paciente" onchange="seleccionarPacienteHistoria(this.value)" class="p-1.5 border rounded text-xs bg-white font-medium">
+            <option value="">Seleccionar paciente...</option>
+          </select>
+          <button onclick="abrirModalCampos()" class="bg-slate-700 text-white px-3 py-1.5 rounded hover:bg-slate-800 font-medium text-xs">
+            <i class="fa-solid fa-gear mr-1"></i> Configurar Subtítulos & Borrar
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-3 rounded-xl shadow-md border no-print">
+          <h3 class="font-bold text-gray-700 mb-2">Pacientes / Fichas en Espera</h3>
+          <div id="lista-fichas-espera" class="space-y-2"></div>
+        </div>
+        <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-md border hidden print-a4-vertical-hc" id="panel-editor-historia">
+          
+          <div class="flex justify-between items-start mb-2 border-b pb-2">
+            <div>
+              <span class="text-[10px] font-black tracking-wide text-slate-800 uppercase block">CEDO-REHAB</span>
+              <h3 class="font-extrabold text-slate-900 text-sm uppercase mt-0.5">INFORME MEDICO</h3>
+            </div>
+            <div>
+              <span id="hc-etiqueta-estado" class="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-800 text-white uppercase tracking-wider">PRE-CONSULTA</span>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center mb-3 border-b pb-2 flex-wrap gap-2">
+            <div>
+              <div class="flex items-center space-x-2 mt-1">
+                <span class="text-[10px] font-bold text-gray-500">Paquete Activo:</span>
+                <select id="hc-select-paquete" onchange="cambiarPaqueteActivoDesdeSelector(this.value)" class="p-1 border rounded text-xs font-bold bg-white text-emerald-700" title="Seleccionar paquete para ver y editar"></select>
+              </div>
+              <p id="hc-info-ingreso" class="text-[10px] text-gray-500 mt-0.5"></p>
+            </div>
+            <div class="flex items-center space-x-2 no-print">
+              <select id="hc-color-select" onchange="actualizarColorPacienteActivo(this.value)" class="p-1 border rounded text-xs font-semibold">
+                <option value="color-fucsia">Fucsia (Magneto)</option>
+                <option value="color-melon">Melón (Niños)</option>
+                <option value="color-verde">Verde (Adultos / Electro)</option>
+                <option value="color-amarillo">Amarillo (Adultos Mayores)</option>
+                <option value="color-azul">Azul (Masajes / Descontracturantes)</option>
+                <option value="color-anaranjado">Anaranjado (Doctor)</option>
+              </select>
+            </div>
+          </div>
+
+          <form id="form-historia-clinica" class="space-y-3">
+            
+            <div class="grid grid-cols-4 gap-2 bg-slate-50 p-2 rounded-lg border text-[11px]">
+              <div>
+                <span class="text-[9px] font-bold text-gray-500 block">PACIENTE:</span>
+                <span id="hc-txt-nombre" class="font-bold text-slate-800 truncate block"></span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-500 block">DNI:</span>
+                <span id="hc-txt-dni" class="font-bold text-slate-800 block"></span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-500 block">EDAD:</span>
+                <span id="hc-txt-edad" class="font-bold text-slate-800 block"></span>
+              </div>
+              <div>
+                <span class="text-[9px] font-bold text-gray-500 block">CELULAR:</span>
+                <span id="hc-txt-celular" class="font-bold text-slate-800 block"></span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 bg-emerald-50 p-2 rounded-lg border border-emerald-200 no-print">
+              <div class="flex items-center space-x-2">
+                <label class="text-[10px] font-bold text-emerald-900">Estado Consulta:</label>
+                <div class="flex items-center space-x-2">
+                  <label class="cursor-pointer font-bold text-[10px]"><input type="radio" name="hc-tiene-consulta" value="pre-consulta" onchange="toggleCostoConsultaHC('pre-consulta')"> Pre-Consulta</label>
+                  <label class="cursor-pointer font-bold text-[10px]"><input type="radio" name="hc-tiene-consulta" value="post-consulta" onchange="toggleCostoConsultaHC('post-consulta')"> Post-Consulta</label>
+                  <label class="cursor-pointer font-bold text-[10px]"><input type="radio" name="hc-tiene-consulta" value="no" onchange="toggleCostoConsultaHC('no')" checked> No</label>
+                </div>
+              </div>
+              <div id="hc-div-costo-wrapper" class="hidden">
+                <label class="text-[11px] font-bold text-emerald-800">Costo Consulta (S/.)</label>
+                <input type="number" id="hc-costo-consulta" oninput="sincronizarCostoConsulta(this.value)" placeholder="0.00" class="w-full p-1 border rounded text-xs bg-white font-bold">
+              </div>
+            </div>
+            
+            <div id="contenedor-campos-hc" class="grid grid-cols-2 gap-3"></div>
+
+            <div class="hidden print:block border-t pt-2 space-y-2"></div>
+
+            <div class="border-t pt-2 flex justify-end space-x-2 no-print">
+              <button type="button" onclick="window.print()" class="bg-gray-600 text-white px-4 py-2 rounded font-bold hover:bg-gray-700">
+                <i class="fa-solid fa-print mr-1"></i> Imprimir Ficha (A4 Vertical)
+              </button>
+              <button type="button" onclick="guardarHistoriaYPasarATerapias()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">
+                Guardar e Ir a Terapias <i class="fa-solid fa-arrow-right ml-1"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-terapias" class="space-y-4 hidden">
+      <div class="flex justify-between items-center border-b pb-2 flex-wrap gap-2 no-print">
+        <h2 class="text-lg font-bold text-gray-800">Ficha de Tratamiento (A5 Horizontal)</h2>
+        <div class="flex items-center space-x-2">
+          <input type="text" id="buscador-terapias" placeholder="Buscar por Nombre o DNI..." oninput="filtrarSelectTerapias(this.value)" class="p-1 border rounded text-xs w-48">
+          <select id="select-terapia-paciente" onchange="cargarFichaTerapias(this.value)" class="p-1 border rounded text-xs">
+            <option value="">Seleccionar paciente...</option>
+          </select>
+        </div>
+      </div>
+      <div id="contenedor-ficha-terapias" class="bg-white p-4 rounded-xl shadow-md border max-w-4xl mx-auto hidden print-a5-horizontal">
+        <div class="border-2 border-slate-800 p-3 space-y-2">
+          <div id="terapia-header-color" class="p-2 rounded border font-bold flex justify-between items-center flex-wrap gap-2">
+            <div class="flex flex-col">
+              <span class="text-xs font-black tracking-wide">CEDO-REHAB EIRL</span>
+              <span class="text-sm uppercase font-extrabold mt-0.5">FICHA DE TRATAMIENTO</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px]">FECHA: <input type="date" id="ter-fecha-ficha" class="p-1 border rounded text-[10px] bg-white text-black font-normal"></span>
+              <span class="text-[10px]">PAQUETE: <select id="select-historial-fichas" onchange="seleccionarFichaPorPaquete(this.value)" class="p-1 border rounded text-[10px] bg-white text-black font-normal"></select></span>
+              <button onclick="actualizarDatosPaqueteDesdeFicha()" class="bg-slate-700 text-white px-2 py-1 rounded text-[10px] font-bold no-print" title="Actualizar datos de este paquete"><i class="fa-solid fa-sync"></i> Actualizar</button>
+            </div>
+          </div>
+
+          <div class="bg-gray-50 p-2 rounded border space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] font-semibold border-b pb-1 flex-wrap gap-1">
+              <div><strong>PACIENTE:</strong> <span id="ter-nombre-paciente-span" class="font-normal"></span></div>
+              <div><strong>EDAD:</strong> <span id="ter-edad" class="font-normal"></span></div>
+              <div><strong>DNI:</strong> <span id="ter-dni" class="font-normal"></span></div>
+              <div class="flex items-center space-x-2">
+                <strong>TIPO:</strong>
+                <label class="cursor-pointer font-normal"><input type="radio" name="ter-tipo-atencion" value="ASEGURADO" onchange="guardarTipoAtencion(this.value)"> Asegurado</label>
+                <label class="cursor-pointer font-normal"><input type="radio" name="ter-tipo-atencion" value="PARTICULAR" onchange="guardarTipoAtencion(this.value)"> Particular</label>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between items-center mb-0.5">
+                <span class="font-bold text-slate-800 text-[9px]">DX (Diagnóstico) y Fecha:</span>
+                <input type="date" id="ter-fecha-dx" class="border p-0.5 text-[9px] rounded bg-white">
+              </div>
+              <textarea id="ter-descripcion-dx" class="w-full p-1 border rounded text-[9px] bg-white" style="min-height: 40px;" placeholder="DX compacto..."></textarea>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[10px] font-semibold pt-1 border-t">
+            <div class="space-y-1 border-r pr-2">
+              <p class="font-bold text-slate-700 underline mb-1">AGENTES FÍSICOS Y TÉCNICAS</p>
+              <div class="grid grid-cols-4 gap-1 text-center">
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'CHC')"></div><span class="text-[9px]">CHC</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'CHF')"></div><span class="text-[9px]">CHF</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'IR')"></div><span class="text-[9px]">IR</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'US 1 MHz')"></div><span class="text-[9px]">US 1 MHz</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'US 3 MHz')"></div><span class="text-[9px]">US 3 MHz</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'TENS')"></div><span class="text-[9px]">TENS</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'INTERFERENCIAL')"></div><span class="text-[9px]">INTERF</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'MAGNETOTERAPIA')"></div><span class="text-[9px]">MAGNETO</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'RAYOS LASER')"></div><span class="text-[9px]">LÁSER</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'ALTO VOLTAJE')"></div><span class="text-[9px]">ALTO V.</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'TERAPIA COMBINADA')"></div><span class="text-[9px]">T. COMBINADA</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'CONTRASTE')"></div><span class="text-[9px]">CONTRASTE</span></label>
+              </div>
+            </div>
+            <div class="space-y-1">
+              <p class="font-bold text-slate-700 underline mb-1">MASOTERAPIA / GIMNASIO Y EJERCICIOS</p>
+              <div class="grid grid-cols-3 gap-1 text-center">
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'MASOTERAPIA SUAVE')"></div><span class="text-[9px]">Maso. Suave</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'MASOTERAPIA PROFUNDA')"></div><span class="text-[9px]">Maso. Prof.</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'COLCHONETA')"></div><span class="text-[9px]">Colchoneta</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'RUEDA HOMBRO')"></div><span class="text-[9px]">Rueda H.</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'PARALELA')"></div><span class="text-[9px]">Paralela</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'BICICLETA')"></div><span class="text-[9px]">Bicicleta</span></label>
+                <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'ESCALERA RUSA')"></div><span class="text-[9px]">Escalera R.</span></label>
+              </div>
+              <div class="mt-2 pt-1 border-t space-y-1">
+                <span class="text-[9px] font-bold text-slate-700 block">EJERCICIOS TERAPEUTICOS:</span>
+                <div class="grid grid-cols-3 gap-1 text-center">
+                  <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'WILSON')"></div><span class="text-[9px]">Wilson</span></label>
+                  <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'WILLIAMS')"></div><span class="text-[9px]">Williams</span></label>
+                  <label class="flex flex-col items-center"><div class="ter-checkbox-box" onclick="toggleTerCheck(this, 'OTRO METODO')"></div><span class="text-[9px]">Otro Método</span></label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="pt-1 border-t space-y-1">
+            <p class="font-bold text-slate-700 underline text-[10px]">INDICACIONES ADICIONALES DEL DOCTOR</p>
+            <div id="contenedor-indicaciones-extra" class="space-y-1.5"></div>
+            <button type="button" onclick="agregarLineaIndicacion()" class="text-[10px] text-blue-600 font-bold hover:underline mt-0.5 no-print">
+              <i class="fa-solid fa-plus mr-1"></i> Aumentar indicaciones (líneas)
+            </button>
+          </div>
+
+          <div class="pt-2 border-t text-center">
+            <p class="text-[9px] font-bold text-slate-600 uppercase tracking-tight">CALLE NUEVA ARICA 169 URB. VILLA EL SALVADOR CHICLAYO - LAMBAYEQUE</p>
+          </div>
+
+          <div class="flex space-x-2 pt-1 no-print">
+            <button onclick="window.print()" class="flex-1 bg-gray-700 text-white py-1.5 rounded font-bold hover:bg-gray-800">
+              <i class="fa-solid fa-print mr-1"></i> Imprimir Ficha (A5 Horizontal)
+            </button>
+            <button onclick="finalizarTerapias()" class="flex-1 bg-emerald-600 text-white py-1.5 rounded font-bold hover:bg-emerald-700">
+              Guardar Ficha de Terapia
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-asistencia" class="space-y-4 hidden">
+      <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Control de Asistencia, Paquetes, Fechas y Boletas por Terapia (1-10)</h2>
+      <div id="contenedor-asistencias" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <section id="sec-inventario" class="space-y-4 hidden">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h2 class="text-lg font-bold text-gray-800">Gestión de Inventario</h2>
+        <button onclick="abrirModalInventario()" class="bg-emerald-600 text-white px-3 py-1.5 rounded font-bold hover:bg-emerald-700 text-xs">
+          <i class="fa-solid fa-plus mr-1"></i> Agregar Item
+        </button>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-md border">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="grid-inventario"></div>
+      </div>
+    </section>
+
+    <section id="sec-rencuentro-inventario" class="space-y-4 hidden">
+      <div class="flex justify-between items-center border-b pb-2 flex-wrap gap-2">
+        <h2 class="text-lg font-bold text-gray-800">Rencuentro de Inventario - Meses y Años (4 Sábados)</h2>
+        <div class="flex items-center space-x-2">
+          <select id="select-rencuentro-anio" onchange="renderizarRencuentroInventario()" class="p-1 border rounded text-xs font-bold bg-white text-slate-800"></select>
+          <select id="select-rencuentro-mes" onchange="renderizarRencuentroInventario()" class="p-1 border rounded text-xs font-bold bg-white text-slate-800">
+            <option value="enero">Enero</option><option value="febrero">Febrero</option><option value="marzo">Marzo</option>
+            <option value="abril">Abril</option><option value="mayo">Mayo</option><option value="junio">Junio</option>
+            <option value="julio">Julio</option><option value="agosto" selected>Agosto</option><option value="septiembre">Septiembre</option>
+            <option value="octubre">Octubre</option><option value="noviembre">Noviembre</option><option value="diciembre">Diciembre</option>
+          </select>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-md border overflow-x-auto">
+        <table class="w-full border-collapse text-center">
+          <thead>
+            <tr class="bg-gray-200 text-gray-700 text-[11px]">
+              <th class="p-2 border text-left">Artículo / Insumo</th>
+              <th class="p-2 border">Cantidad Actual</th>
+              <th class="p-2 border">Sábado 1</th>
+              <th class="p-2 border">Sábado 2</th>
+              <th class="p-2 border">Sábado 3</th>
+              <th class="p-2 border">Sábado 4</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-rencuentro-inventario"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="sec-finanzas" class="space-y-4 hidden">
+      <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Módulo de Finanzas (Caja Diaria, Mensual, Gráficos y Pasacalles)</h2>
+      
+      <div class="bg-white p-4 rounded-xl shadow-md border flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center space-x-3 flex-wrap gap-2">
+          <label class="font-bold text-slate-700 text-sm">Seleccionar Año y Mes Activo para Finanzas:</label>
+          <select id="select-anio-finanzas" onchange="cambiarAnioFinanzas(this.value)" class="p-2 border rounded text-xs font-bold bg-blue-50 text-blue-900"></select>
+          <select id="select-mes-finanzas" onchange="cambiarMesFinanzas(this.value)" class="p-2 border rounded text-xs font-bold bg-emerald-50 text-emerald-900">
+            <option value="enero">Enero</option><option value="febrero">Febrero</option><option value="marzo">Marzo</option>
+            <option value="abril">Abril</option><option value="mayo">Mayo</option><option value="junio">Junio</option>
+            <option value="julio">Julio</option><option value="agosto" selected>Agosto</option><option value="septiembre">Septiembre</option>
+            <option value="octubre">Octubre</option><option value="noviembre">Noviembre</option><option value="diciembre">Diciembre</option>
+          </select>
+        </div>
+        <div class="bg-emerald-600 text-white px-4 py-2 rounded-lg font-extrabold text-sm shadow">
+          TOTAL ACUMULADO DEL MES: <span id="span-total-mes-seleccionado">S/. 0.00</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow-md border space-y-3">
+          <h3 class="font-semibold text-gray-700">Caja de Hoy (Tiempo Real)</h3>
+          <p class="text-sm text-gray-600">Pagos de consulta y terapias contabilizados hoy.</p>
+          <div id="caja-hoy-contenido" class="p-3 bg-gray-50 rounded-lg border space-y-2 text-xs"></div>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border space-y-3">
+          <h3 class="font-semibold text-gray-700">Caja del Mes (Tiempo Real)</h3>
+          <p class="text-sm text-gray-600">Acumulado general del mes seleccionado.</p>
+          <div id="caja-mes-contenido" class="p-3 bg-gray-50 rounded-lg border space-y-2 text-xs"></div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-xl shadow-md border space-y-3">
+        <h3 class="font-bold text-gray-800 text-sm"><i class="fa-solid fa-chart-line mr-2 text-emerald-600"></i>Gráfico de Comportamiento de Ventas del Mes</h3>
+        <div class="w-full h-72">
+          <canvas id="graficoVentasMes"></canvas>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="modal-paciente" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-4 rounded-xl w-80 space-y-3 shadow-xl">
+      <h3 class="font-bold text-gray-800 text-sm border-b pb-1">Seleccionar Paciente (Turno Fila <span id="modal-slot-num"></span>)</h3>
+      <input type="text" id="buscador-modal-paciente" placeholder="Buscar paciente..." oninput="filtrarPacientesModal(this.value)" class="w-full p-1.5 border rounded text-xs">
+      <div id="modal-lista-pacientes" class="space-y-1.5 max-h-60 overflow-y-auto"></div>
+      <div class="flex justify-between pt-2 border-t">
+        <button onclick="limpiarCeldaActual()" class="text-red-600 font-semibold text-xs hover:underline">Vaciar celda</button>
+        <button onclick="cerrarModalPaciente()" class="px-3 py-1 bg-gray-200 rounded text-xs font-semibold">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-editar-hora" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-4 rounded-xl w-64 space-y-3 shadow-xl text-center">
+      <h3 class="font-bold text-gray-800 text-sm border-b pb-1">Modificar Hora del Día</h3>
+      <input type="text" id="input-nueva-hora-texto" placeholder="Ej. 3:00 PM" class="w-full p-2 border rounded text-center text-xs font-bold">
+      <div class="flex space-x-2 pt-2 border-t">
+        <button onclick="guardarHoraManual()" class="flex-1 bg-emerald-600 text-white py-1.5 rounded font-bold text-xs hover:bg-emerald-700">Guardar</button>
+        <button onclick="cerrarModalEditarHora()" class="px-3 py-1.5 bg-gray-200 rounded text-xs font-semibold">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-campos" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-4 rounded-xl w-80 space-y-3 shadow-xl">
+      <h3 class="font-bold text-gray-800 text-sm">Configurar / Agregar Subtítulo para Historia Clínica</h3>
+      <input type="text" id="nuevo-campo-nombre" placeholder="Ej. Escala EVA, Signos..." class="w-full p-2 border rounded text-xs">
+      <div class="flex justify-end space-x-2 pt-2 border-t">
+        <button onclick="cerrarModalCampos()" class="px-3 py-1 border rounded text-xs">Cancelar</button>
+        <button onclick="guardarNuevoCampo()" class="px-3 py-1 bg-emerald-600 text-white rounded font-bold text-xs">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-color-extra" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-5 rounded-xl w-80 space-y-3 shadow-xl">
+      <h3 class="font-bold text-gray-800 text-sm border-b pb-1">Agregar Nuevo Color de Ficha</h3>
+      <div>
+        <label class="font-medium text-gray-600 text-[11px]">Nombre del Color / Etiqueta</label>
+        <input type="text" id="input-nombre-color" placeholder="Ej. Turquesa (Neurología)" class="w-full p-2 border rounded text-xs mt-0.5">
+      </div>
+      <div>
+        <label class="font-medium text-gray-600 text-[11px]">Código de Color CSS (Fondo)</label>
+        <input type="color" id="input-codigo-color" value="#ccfbf1" class="w-full p-1 border rounded h-10 cursor-pointer mt-0.5">
+      </div>
+      <div class="flex justify-end space-x-2 pt-2 border-t">
+        <button onclick="cerrarModalColorExtra()" class="px-3 py-1.5 bg-gray-200 rounded text-xs font-semibold">Cancelar</button>
+        <button onclick="guardarColorExtra()" class="px-3 py-1.5 bg-emerald-600 text-white rounded font-bold text-xs">Guardar Color</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-inventario" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-5 rounded-xl w-80 space-y-3 shadow-xl">
+      <h3 class="font-bold text-gray-800 text-sm border-b pb-1" id="titulo-modal-inv">Agregar / Editar Inventario</h3>
+      <input type="hidden" id="inv-id-editando" value="">
+      <div>
+        <label class="font-medium text-gray-600 text-[11px]">Nombre del Artículo</label>
+        <input type="text" id="inv-nombre" class="w-full p-2 border rounded text-xs mt-0.5">
+      </div>
+      <div>
+        <label class="font-medium text-gray-600 text-[11px]">Cantidad</label>
+        <input type="number" id="inv-cantidad" class="w-full p-2 border rounded text-xs mt-0.5">
+      </div>
+      <div>
+        <label class="font-medium text-gray-600 text-[11px]">Enlace de Imagen (URL)</label>
+        <input type="text" id="inv-imagen" placeholder="https://..." class="w-full p-2 border rounded text-xs mt-0.5">
+      </div>
+      <div class="flex justify-end space-x-2 pt-2 border-t">
+        <button onclick="cerrarModalInventario()" class="px-3 py-1.5 bg-gray-200 rounded text-xs font-semibold">Cancelar</button>
+        <button onclick="guardarInventarioItem()" class="px-3 py-1.5 bg-emerald-600 text-white rounded font-bold text-xs">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-boleta" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-center z-50">
+    <div class="bg-white p-5 rounded-xl w-96 space-y-3 shadow-xl">
+      <h3 class="font-bold text-gray-800 text-sm border-b pb-2 flex justify-between items-center">
+        <span>Emitir Boleta / Comprobante</span>
+        <i class="fa-solid fa-receipt text-emerald-600"></i>
+      </h3>
+      <div id="contenido-boleta" class="space-y-2 text-xs bg-gray-50 p-3 rounded border"></div>
+      <div class="flex justify-end space-x-2 pt-2 border-t">
+        <button onclick="cerrarModalBoleta()" class="px-3 py-1 bg-gray-200 rounded text-xs font-semibold">Cerrar</button>
+        <button onclick="alert('Boleta generada e impresa con éxito.'); cerrarModalBoleta();" class="px-3 py-1 bg-emerald-600 text-white rounded font-bold text-xs">Imprimir Boleta</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let pacientes = [
+      { 
+        id: 1, nombre: "ALEXA SALCEDO ROJAS", edad: "30", dni: "45871254", celular: "987654321", fechaIngreso: "2026-01-10", color: "color-melon", dniApoderado: "", consultaMedica: "pre-consulta", paqueteActual: 1, reevaluacionRequerida: false, 
+        tipoAtencion: "PARTICULAR",
+        camposHC: ["Nombre", "Edad", "DNI", "Celular", "Síntomas", "Examen Físico"],
+        historialClinicoPaquetes: {
+          1: [
+            { tipo: 'PRE-CONSULTA', fecha: '2026-01-10', datos: {Síntomas: "Dolor lumbar inicial"} }
+          ]
+        },
+        fichasTerapias: [
+          { idFicha: 1, paqueteNum: 1, titulo: "Paquete 1 - Sesión Inicial", fecha: "2026-01-10", fechaDx: "2026-01-10", dx: "Lumbalgia", tipoAtencion: "PARTICULAR", terapias: ["CHC", "TENS"], indicacionesExtra: ["Aplicar calor local"] }
+        ],
+        paquetesAsistencia: {
+          1: { fechaInicio: "2026-01-10", fechaTermino: "2026-01-25", costo: "400", pagos: [{fecha: "2026-01-10", monto: "400", metodo: "Efectivo", detalleMetodo: ""}], sesiones: 3, boletasTerapias: {1: true, 2: true, 3: false} }
+        },
+        costoConsulta: "50", costoTerapia: "40", boletasPaquetes: {1: true}
+      }
+    ];
+
+    let inventarioItems = [
+      { id: 1, nombre: "Gel conductor 1L", cantidad: 12, imagen: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150" },
+      { id: 2, nombre: "Electrodos TENS (paq)", cantidad: 25, imagen: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=150" },
+      { id: 3, nombre: "Bandas elásticas rehabilitación", cantidad: 8, imagen: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=150" }
+    ];
+
+    let reencuentroInventarioDatos = {}; 
+    let camposPredeterminadosHC = ["Nombre", "Edad", "DNI", "Celular", "Síntomas", "Examen Físico"];
+    let aniosDisponibles = [2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035];
+    let anioActivo = 2026;
+    let anioFinanzasActivo = 2026;
+    let baseDatosAnios = {};
+    let mesActivoId = 'enero';
+    let mesFinanzasActivo = 'agosto';
+    let celdaSeleccionadaRef = null;
+    let horaEditandoRef = null;
+    let pacienteActivoId = null;
+    let graficoVentasInstancia = null;
+
+    function generarMesesParaAnio(anioNum) {
+      const nombresMeses = [
+        { id: 'enero', nombre: 'ENERO' }, { id: 'febrero', nombre: 'FEBRERO' }, { id: 'marzo', nombre: 'MARZO' },
+        { id: 'abril', nombre: 'ABRIL' }, { id: 'mayo', nombre: 'MAYO' }, { id: 'junio', nombre: 'JUNIO' },
+        { id: 'julio', nombre: 'JULIO' }, { id: 'agosto', nombre: 'AGOSTO' }, { id: 'septiembre', nombre: 'SEPTIEMBRE' },
+        { id: 'octubre', nombre: 'OCTUBRE' }, { id: 'noviembre', nombre: 'NOVIEMBRE' }, { id: 'diciembre', nombre: 'DICIEMBRE' }
+      ];
+
+      return nombresMeses.map((m, mIdx) => {
+        let diasMes = [];
+        let numDias = new Date(anioNum, mIdx + 1, 0).getDate();
+        for(let d=1; d<=numDias; d++) {
+          let fechaObj = new Date(anioNum, mIdx, d);
+          let diaSemanaNum = fechaObj.getDay(); 
+          if(diaSemanaNum === 0) continue; 
+          
+          let nombresDias = ['DOM', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+          let nombreDia = nombresDias[diaSemanaNum];
+          let fechaStr = `${d}/${mIdx+1}/${anioNum}`;
+          
+          let slotsDefault = [
+            {h:'3:00 PM', p:'', c:'', a:''}, {h:'4:00 PM', p:'', c:'', a:''}, {h:'5:00 PM', p:'', c:'', a:''}
+          ];
+
+          diasMes.push({ nombre: nombreDia, fecha: fechaStr, estadoDia: 'laboral-verde', slots: slotsDefault });
+        }
+
+        let semanas = [];
+        let tempSemanaDias = [];
+        
+        diasMes.forEach((d) => {
+          if(d.nombre === 'LUNES' && tempSemanaDias.length > 0) {
+            semanas.push({ dias: tempSemanaDias });
+            tempSemanaDias = [];
+          }
+          tempSemanaDias.push(d);
+        });
+        if(tempSemanaDias.length > 0) {
+          semanas.push({ dias: tempSemanaDias });
+        }
+
+        if(semanas.length === 0) {
+          semanas.push({ dias: [ { nombre: 'LUNES', fecha: `1/${mIdx+1}/${anioNum}`, estadoDia: 'laboral-verde', slots: [] } ] });
+        }
+
+        return { id: m.id, nombre: m.nombre, semanas: semanas };
+      });
+    }
+
+    aniosDisponibles.forEach(a => {
+      baseDatosAnios[a] = generarMesesParaAnio(a);
+    });
+
+    const API_BASE_URL = (window.location.protocol.startsWith('http'))
+      ? window.location.origin + '/api'
+      : 'http://localhost:8080/api';
+    let authToken = localStorage.getItem('cedo_rehab_token') || '';
+
+    async function apiRequest(endpoint, options = {}) {
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {}),
+          ...(options.headers || {})
+        };
+        const res = await fetch(API_BASE_URL + endpoint, {
+          ...options,
+          headers
+        });
+        if (!res.ok) {
+          return null;
+        }
+        return await res.json();
+      } catch (err) {
+        return null;
+      }
+    }
+
+    async function sincronizarPacienteConBackend(p) {
+      if (!p) return;
+      try {
+        if (p.id && typeof p.id === 'number' && p.id < 100000000000) {
+          await apiRequest('/paciente', {
+            method: 'PUT',
+            body: JSON.stringify(p)
+          });
+        }
+      } catch (e) {}
+    }
+
+    async function sincronizarAgendaConBackend() {
+      try {
+        await apiRequest('/agenda', {
+          method: 'POST',
+          body: JSON.stringify({
+            anio: anioActivo,
+            meses: baseDatosAnios[anioActivo]
+          })
+        });
+      } catch (e) {}
+    }
+
+    async function cargarDatosDesdeBackend() {
+      try {
+        const pacs = await apiRequest('/pacientes');
+        if (pacs && Array.isArray(pacs) && pacs.length > 0) {
+          pacientes = pacs;
+          renderizarListaRegistro();
+          actualizarSelectHistoriaPacientes();
+          renderizarHistoriasEspera();
+          actualizarSelectTerapias();
+          renderizarAsistencias();
+        }
+
+        const inv = await apiRequest('/inventario');
+        if (inv && Array.isArray(inv) && inv.length > 0) {
+          inventarioItems = inv;
+          renderizarInventario();
+        }
+
+        const reenc = await apiRequest('/reencuentro-inventario/map');
+        if (reenc && typeof reenc === 'object') {
+          reencuentroInventarioDatos = reenc;
+          renderizarRencuentroInventario();
+        }
+
+        const agenda = await apiRequest('/agenda/' + anioActivo);
+        if (agenda && agenda.meses && Array.isArray(agenda.meses) && agenda.meses.length > 0) {
+          baseDatosAnios[anioActivo] = agenda.meses;
+          renderizarAgenda();
+        }
+      } catch (err) {
+        console.warn('Usando almacenamiento en memoria:', err);
+      }
+    }
+
+    async function verificarClave() {
+      const clave = document.getElementById('input-clave').value;
+      if(clave === '2399') {
+        try {
+          const authRes = await apiRequest('/auth/pin', {
+            method: 'POST',
+            body: JSON.stringify({ pin: clave })
+          });
+          if (authRes && authRes.token) {
+            authToken = authRes.token;
+            localStorage.setItem('cedo_rehab_token', authToken);
+          }
+        } catch (e) {}
+        document.getElementById('modal-clave').classList.add('hidden');
+        await cargarDatosDesdeBackend();
+      } else {
+        document.getElementById('error-clave').classList.remove('hidden');
+      }
+    }
+
+    function cambiarPestaña(pestana) {
+      document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-slate-700', 'text-emerald-400'));
+      document.getElementById(`sec-${pestana}`).classList.remove('hidden');
+      document.getElementById(`btn-${pestana}`).classList.add('bg-slate-700', 'text-emerald-400');
+
+      if(pestana === 'agenda') renderizarAgenda();
+      if(pestana === 'registro') {
+        renderizarListaRegistro();
+        document.getElementById('reg-fecha-ingreso').value = new Date().toISOString().split('T')[0];
+        verificarEdadMenor();
+      }
+      if(pestana === 'historias') {
+        renderizarHistoriasEspera();
+        actualizarSelectHistoriaPacientes();
+      }
+      if(pestana === 'asistencia') renderizarAsistencias();
+      if(pestana === 'terapias') actualizarSelectTerapias();
+      if(pestana === 'inventario') renderizarInventario();
+      if(pestana === 'rencuentro-inventario') {
+        poblarSelectRencuentroAnios();
+        renderizarRencuentroInventario();
+      }
+      if(pestana === 'finanzas') renderizarFinanzas();
+    }
+
+    function verificarEdadMenor() {
+      const edad = parseInt(document.getElementById('reg-edad').value) || 0;
+      const divApod = document.getElementById('div-dni-apoderado');
+      if(edad > 0 && edad < 18) {
+        divApod.classList.remove('hidden');
+      } else {
+        divApod.classList.add('hidden');
+        document.getElementById('reg-dni-apoderado').value = '';
+      }
+    }
+
+    function cambiarAnio(nuevoAnio) {
+      anioActivo = parseInt(nuevoAnio);
+      renderizarAgenda();
+    }
+
+    function seleccionarMes(id) {
+      mesActivoId = id;
+      renderizarAgenda();
+    }
+
+    function insertarFilaEnIndice(sIdx, targetSlotIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      const mesObj = mesesAnio.find(m => m.id === mesActivoId);
+      if(mesObj && mesObj.semanas[sIdx]) {
+        let sem = mesObj.semanas[sIdx];
+        sem.dias.forEach(d => {
+          if(!d.slots) d.slots = [];
+          d.slots.splice(targetSlotIdx, 0, { h: '3:00 PM', p: '', c: '', a: '' });
+        });
+        renderizarAgenda();
+      }
+    }
+
+    function agregarFilaSemana(sIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      const mesObj = mesesAnio.find(m => m.id === mesActivoId);
+      if(mesObj && mesObj.semanas[sIdx]) {
+        let sem = mesObj.semanas[sIdx];
+        sem.dias.forEach(d => {
+          if(!d.slots) d.slots = [];
+          d.slots.push({ h: '6:00 PM', p: '', c: '', a: '' });
+        });
+        renderizarAgenda();
+      }
+    }
+
+    function borrarFilaSemana(sIdx, slotIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      const mesObj = mesesAnio.find(m => m.id === mesActivoId);
+      if(mesObj && mesObj.semanas[sIdx]) {
+        let sem = mesObj.semanas[sIdx];
+        sem.dias.forEach(d => {
+          if(d.slots && d.slots.length > slotIdx) {
+            d.slots.splice(slotIdx, 1);
+          }
+        });
+        renderizarAgenda();
+      }
+    }
+
+    function copiarSemanaSiguiente(sIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      const mesObj = mesesAnio.find(m => m.id === mesActivoId);
+      if(mesObj && mesObj.semanas[sIdx + 1]) {
+        mesObj.semanas[sIdx + 1] = JSON.parse(JSON.stringify(mesObj.semanas[sIdx]));
+        renderizarAgenda();
+        alert(`Se ha copiado la Semana ${sIdx + 1} a la Semana ${sIdx + 2} exitosamente.`);
+      } else {
+        alert("No existe una semana siguiente en este mes para realizar la copia.");
+      }
+    }
+
+    function renderizarAgenda() {
+      const selectAnio = document.getElementById('select-anio-activo');
+      selectAnio.innerHTML = aniosDisponibles.map(a => `<option value="${a}" ${a === anioActivo ? 'selected' : ''}>Año: ${a}</option>`).join('');
+
+      let mesesAnio = baseDatosAnios[anioActivo];
+      const navMeses = document.getElementById('nav-meses');
+      navMeses.innerHTML = mesesAnio.map(m => `
+        <button onclick="seleccionarMes('${m.id}')" class="px-2.5 py-1 rounded font-bold uppercase transition text-xs shrink-0 ${m.id === mesActivoId ? 'bg-slate-800 text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">
+          ${m.nombre}
+        </button>
+      `).join('');
+
+      const mesObj = mesesAnio.find(m => m.id === mesActivoId);
+      const container = document.getElementById('tabla-horario-container');
+      
+      container.innerHTML = mesObj.semanas.map((sem, sIdx) => {
+        let esUltimaSemana = (sIdx === mesObj.semanas.length - 1);
+        return `
+          <div class="mb-4 border rounded-lg overflow-hidden shadow-sm">
+            <div class="bg-slate-700 text-white px-3 py-1.5 font-bold flex justify-between items-center flex-wrap gap-2">
+              <span>SEMANA ${sIdx + 1} - ${mesObj.nombre} (${anioActivo})</span>
+              <div class="flex items-center space-x-2">
+                <button onclick="agregarFilaSemana(${sIdx})" class="bg-emerald-600 text-white px-2.5 py-1 rounded font-bold hover:bg-emerald-700 text-[10px] shadow">
+                  <i class="fa-solid fa-plus mr-1"></i> + Fila de Turno
+                </button>
+                ${sIdx < mesObj.semanas.length - 1 ? `
+                  <button onclick="copiarSemanaSiguiente(${sIdx})" class="bg-indigo-600 text-white px-2.5 py-1 rounded font-bold hover:bg-indigo-700 text-[10px] shadow">
+                    <i class="fa-solid fa-copy mr-1"></i> Copiar a Semana ${sIdx + 2}
+                  </button>
+                ` : ''}
+                ${esUltimaSemana ? `
+                  <button onclick="copiarSemanaAlSiguienteMes(${sIdx})" class="bg-amber-600 text-white px-2.5 py-1 rounded font-bold hover:bg-amber-700 text-[10px] shadow" title="Copiar esta última semana como base al siguiente mes">
+                    <i class="fa-solid fa-share-from-square mr-1"></i> Copiar al Siguiente Mes
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+            <div class="overflow-x-auto overflow-y-visible">
+              <table class="w-full border-collapse text-center">
+                <thead>
+                  <tr class="bg-gray-200 text-gray-700 text-[10px]">
+                    <th class="p-1 border w-12">TURNO</th>
+                    ${sem.dias.map((d, dIdx) => `
+                      <th class="p-1 border ${d.estadoDia}" colspan="2">
+                        <div class="flex flex-col items-center space-y-0.5">
+                          <span class="font-bold">${d.nombre}</span>
+                          <span class="text-[9px] underline">${d.fecha}</span>
+                          <select onchange="cambiarEstadoDia(${sIdx}, ${dIdx}, this.value)" class="mt-1 p-0.5 text-[9px] font-bold rounded border bg-white text-gray-800">
+                            <option value="laboral-verde" ${d.estadoDia==='laboral-verde'?'selected':''}>LABORAL</option>
+                            <option value="feriado-rojo" ${d.estadoDia==='feriado-rojo'?'selected':''}>FERIADO</option>
+                          </select>
+                        </div>
+                      </th>
+                    `).join('')}
+                  </tr>
+                  <tr class="bg-gray-100 text-gray-600 text-[9px] font-bold border-b">
+                    <th class="p-1 border">#</th>
+                    ${sem.dias.map((d, dIdx) => `
+                      <th class="p-1 border bg-slate-50">PACIENTE / HORA</th>
+                      <th class="p-1 border w-10">ASIST</th>
+                    `).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${generarFilasSlots(sem, sIdx)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function copiarSemanaAlSiguienteMes(sIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let mCurrentIdx = mesesAnio.findIndex(m => m.id === mesActivoId);
+      if(mCurrentIdx >= 0 && mCurrentIdx < mesesAnio.length - 1) {
+        let siguienteMesObj = mesesAnio[mCurrentIdx + 1];
+        if(siguienteMesObj.semanas && siguienteMesObj.semanas.length > 0) {
+          siguienteMesObj.semanas[0] = JSON.parse(JSON.stringify(mesesAnio[mCurrentIdx].semanas[sIdx]));
+          alert(`La última semana se copió exitosamente como la primera semana de ${siguienteMesObj.nombre}.`);
+          seleccionarMes(siguienteMesObj.id);
+        }
+      } else {
+        alert("Estás in el último mes del año actual. Cambia de año o mes para continuar.");
+      }
+    }
+
+    function cambiarEstadoDia(sIdx, dIdx, valor) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let sem = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx];
+      sem.dias[dIdx].estadoDia = valor;
+      renderizarAgenda();
+    }
+
+    function generarFilasSlots(sem, sIdx) {
+      let maxSlots = 0;
+      sem.dias.forEach(d => {
+        if(d.slots && d.slots.length > maxSlots) maxSlots = d.slots.length;
+      });
+
+      let filasHTML = '';
+      for(let i=0; i<maxSlots; i++) {
+        filasHTML += `<tr class="border-b fila-item fila-contenedor">`;
+        
+        filasHTML += `
+          <td class="p-1 border font-bold bg-gray-50 text-gray-700 relative">
+            <div class="btn-insertar-fila" onclick="insertarFilaEnIndice(${sIdx}, ${i})" title="Insertar fila aquí">+</div>
+            <div class="flex items-center justify-center space-x-1">
+              <span>#${i + 1}</span>
+              <button onclick="borrarFilaSemana(${sIdx}, ${i})" class="text-red-500 hover:text-red-700 font-bold text-[10px]" title="Borrar esta fila entera"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        `;
+
+        sem.dias.forEach((d, dIdx) => {
+          let slot = (d.slots && d.slots[i]) ? d.slots[i] : {h: '3:00 PM', p: '', c: '', a: ''};
+          let esFeriado = (d.estadoDia === 'feriado-rojo');
+          let claseColor = esFeriado ? 'feriado-rojo' : (slot.c || 'bg-white');
+
+          filasHTML += `
+            <td class="p-1 border font-semibold text-[10px] ${claseColor}">
+              ${esFeriado ? 'FERIADO' : `
+                <div class="flex flex-col items-center space-y-0.5">
+                  <span onclick="abrirModalEditarHora(${sIdx}, ${dIdx}, ${i})" class="text-[9px] text-slate-600 bg-white/70 px-1 rounded cursor-pointer hover:bg-white font-bold" title="Clic para cambiar hora de este día">${slot.h || '3:00 PM'}</span>
+                  <div onclick="abrirModalPaciente(${sIdx}, ${dIdx}, ${i})" class="w-full cursor-pointer hover:opacity-80 p-0.5">
+                    ${slot.p || '<span class="text-gray-400 font-normal">-- Asignar --</span>'}
+                  </div>
+                </div>
+              `}
+            </td>
+            <td class="p-1 border bg-gray-50">
+              <select onchange="actualizarAsistenciaAgenda(${sIdx}, ${dIdx}, ${i}, this.value)" class="w-full text-center p-0.5 border rounded text-[10px] font-bold bg-white">
+                <option value="" ${slot.a===''?'selected':''}>-</option>
+                <option value="A" ${slot.a==='A'?'selected':''}>A</option>
+                <option value="F" ${slot.a==='F'?'selected':''}>F</option>
+                <option value="R" ${slot.a==='R'?'selected':''}>R</option>
+              </select>
+            </td>
+          `;
+        });
+        filasHTML += `</tr>`;
+      }
+      return filasHTML;
+    }
+
+    function abrirModalEditarHora(sIdx, dIdx, slotIdx) {
+      horaEditandoRef = { sIdx, dIdx, slotIdx };
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let slot = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx].dias[dIdx].slots[slotIdx];
+      document.getElementById('input-nueva-hora-texto').value = slot.h || '3:00 PM';
+      document.getElementById('modal-editar-hora').classList.remove('hidden');
+    }
+
+    function cerrarModalEditarHora() {
+      document.getElementById('modal-editar-hora').classList.add('hidden');
+      horaEditandoRef = null;
+    }
+
+    function guardarHoraManual() {
+      if(!horaEditandoRef) return;
+      const nuevaHora = document.getElementById('input-nueva-hora-texto').value.trim();
+      if(!nuevaHora) return;
+      let { sIdx, dIdx, slotIdx } = horaEditandoRef;
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let slot = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx].dias[dIdx].slots[slotIdx];
+      slot.h = nuevaHora;
+      cerrarModalEditarHora();
+      renderizarAgenda();
+    }
+
+    function abrirModalPaciente(sIdx, dIdx, slotIdx) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let sem = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx];
+      if(sem.dias[dIdx].estadoDia === 'feriado-rojo') {
+        alert("No se puede asignar pacientes en un día Feriado.");
+        return;
+      }
+      celdaSeleccionadaRef = { sIdx, dIdx, slotIdx };
+      document.getElementById('modal-slot-num').innerText = slotIdx + 1;
+      document.getElementById('buscador-modal-paciente').value = '';
+      renderizarListaModalPacientes(pacientes);
+      document.getElementById('modal-paciente').classList.remove('hidden');
+    }
+
+    function renderizarListaModalPacientes(listaPacientes) {
+      const lista = document.getElementById('modal-lista-pacientes');
+      lista.innerHTML = listaPacientes.map(p => `
+        <div onclick="asignarPaciente('${p.nombre}', '${p.color}')" class="p-2 rounded border cursor-pointer hover:opacity-80 flex items-center justify-between ${p.color}">
+          <span class="font-bold">${p.nombre}</span>
+        </div>
+      `).join('');
+    }
+
+    function filtrarPacientesModal(texto) {
+      let filtrados = pacientes.filter(p => p.nombre.toLowerCase().includes(texto.toLowerCase()) || p.dni.includes(texto));
+      renderizarListaModalPacientes(filtrados);
+    }
+
+    function cerrarModalPaciente() { document.getElementById('modal-paciente').classList.add('hidden'); }
+
+    function asignarPaciente(nombre, color) {
+      if(!celdaSeleccionadaRef) return;
+      let { sIdx, dIdx, slotIdx } = celdaSeleccionadaRef;
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let slot = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx].dias[dIdx].slots[slotIdx];
+      slot.p = nombre;
+      slot.c = color;
+      cerrarModalPaciente();
+      renderizarAgenda();
+    }
+
+    function limpiarCeldaActual() {
+      if(!celdaSeleccionadaRef) return;
+      let { sIdx, dIdx, slotIdx } = celdaSeleccionadaRef;
+      let mesesAnio = baseDatosAnios[anioActivo];
+      let slot = mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx].dias[dIdx].slots[slotIdx];
+      slot.p = ''; slot.c = ''; slot.a = '';
+      cerrarModalPaciente();
+      renderizarAgenda();
+    }
+
+    function actualizarAsistenciaAgenda(sIdx, dIdx, slotIdx, val) {
+      let mesesAnio = baseDatosAnios[anioActivo];
+      mesesAnio.find(m => m.id === mesActivoId).semanas[sIdx].dias[dIdx].slots[slotIdx].a = val;
+    }
+
+    function toggleCostoConsultaRegistro(tipoVal) {
+      const divCosto = document.getElementById('div-costo-consulta-reg');
+      if(tipoVal === 'pre-consulta' || tipoVal === 'post-consulta') {
+        divCosto.classList.remove('hidden');
+      } else {
+        divCosto.classList.add('hidden');
+      }
+    }
+
+    function sincronizarCostoConsultaReg(val) {}
+
+    function guardarPaciente() {
+      const idEdicion = document.getElementById('reg-id-editando').value;
+      const nombre = document.getElementById('reg-nombre').value.trim();
+      const edad = document.getElementById('reg-edad').value;
+      const dni = document.getElementById('reg-dni').value;
+      const celular = document.getElementById('reg-celular').value;
+      const fechaIngreso = document.getElementById('reg-fecha-ingreso').value || new Date().toISOString().split('T')[0];
+      const edadNum = parseInt(edad) || 0;
+      const dniApoderado = edadNum < 18 ? document.getElementById('reg-dni-apoderado').value : '';
+      
+      const radioConsulta = document.querySelector('input[name="reg-consulta-opcion"]:checked');
+      const consultaMedicaStr = radioConsulta ? radioConsulta.value : 'no';
+      const costoConsultaVal = (consultaMedicaStr === 'pre-consulta' || consultaMedicaStr === 'post-consulta') ? (document.getElementById('reg-costo-consulta').value || '50') : '0';
+
+      if(!nombre) return alert("Ingrese el nombre del paciente");
+
+      if(idEdicion) {
+        let p = pacientes.find(item => item.id == idEdicion);
+        if(p) {
+          p.nombre = nombre; p.edad = edad; p.dni = dni; p.celular = celular;
+          p.fechaIngreso = fechaIngreso; p.dniApoderado = dniApoderado;
+          p.consultaMedica = consultaMedicaStr;
+          p.costoConsulta = costoConsultaVal;
+          sincronizarPacienteConBackend(p);
+        }
+        alert("Paciente actualizado correctamente.");
+        cancelarEdicionPaciente();
+      } else {
+        const nuevo = {
+          id: Date.now(), nombre, edad, dni, celular, fechaIngreso,
+          color: "color-verde", dniApoderado,
+          consultaMedica: consultaMedicaStr, paqueteActual: 1, reevaluacionRequerida: false,
+          tipoAtencion: "PARTICULAR",
+          boletasPaquetes: {}, camposHC: [...camposPredeterminadosHC],
+          historialClinicoPaquetes: {
+            1: [
+              { tipo: consultaMedicaStr === 'pre-consulta' ? 'PRE-CONSULTA' : (consultaMedicaStr === 'post-consulta' ? 'POST-CONSULTA' : 'NO'), fecha: fechaIngreso, datos: {} }
+            ]
+          },
+          fichasTerapias: [
+            { idFicha: Date.now(), paqueteNum: 1, titulo: `Paquete 1 - Ingreso`, fecha: fechaIngreso, fechaDx: fechaIngreso, dx: '', tipoAtencion: "PARTICULAR", terapias: [], indicacionesExtra: [] }
+          ],
+          paquetesAsistencia: {
+            1: { fechaInicio: fechaIngreso, fechaTermino: '', costo: '400', pagos: [], sesiones: 0, boletasTerapias: {} }
+          },
+          costoConsulta: costoConsultaVal, costoTerapia: '40'
+        };
+        pacientes.push(nuevo);
+        apiRequest('/paciente', {
+          method: 'POST',
+          body: JSON.stringify(nuevo)
+        }).then(res => {
+          if (res && (res.id || res.pacienteId)) {
+            nuevo.id = res.id || res.pacienteId;
+            renderizarListaRegistro();
+          }
+        });
+        alert("Paciente registrado correctamente.");
+        limpiarFormularioRegistro();
+        cambiarPestaña('historias');
+        abrirEditorHistoria(nuevo.id);
+      }
+      renderizarListaRegistro();
+    }
+
+    function limpiarFormularioRegistro() {
+      document.getElementById('reg-nombre').value = '';
+      document.getElementById('reg-edad').value = '';
+      document.getElementById('reg-dni').value = '';
+      document.getElementById('reg-celular').value = '';
+      document.getElementById('reg-dni-apoderado').value = '';
+      document.getElementById('reg-fecha-ingreso').value = new Date().toISOString().split('T')[0];
+      document.querySelector('input[name="reg-consulta-opcion"][value="no"]').checked = true;
+      document.getElementById('div-costo-consulta-reg').classList.add('hidden');
+      document.getElementById('div-dni-apoderado').classList.add('hidden');
+    }
+
+    function cancelarEdicionPaciente() {
+      document.getElementById('reg-id-editando').value = '';
+      document.getElementById('titulo-form-paciente').innerText = 'Datos del Paciente';
+      document.getElementById('btn-guardar-paciente').innerText = 'Registrar y Derivar';
+      document.getElementById('btn-cancelar-edicion').classList.add('hidden');
+      limpiarFormularioRegistro();
+    }
+
+    function prepararEdicionPaciente(id) {
+      const p = pacientes.find(item => item.id == id);
+      if(!p) return;
+
+      document.getElementById('reg-id-editando').value = p.id;
+      document.getElementById('reg-nombre').value = p.nombre || '';
+      document.getElementById('reg-edad').value = p.edad || '';
+      document.getElementById('reg-dni').value = p.dni || '';
+      document.getElementById('reg-celular').value = p.celular || '';
+      document.getElementById('reg-fecha-ingreso').value = p.fechaIngreso || '';
+      verificarEdadMenor();
+      if(document.getElementById('reg-dni-apoderado')) {
+        document.getElementById('reg-dni-apoderado').value = p.dniApoderado || '';
+      }
+
+      let radios = document.querySelectorAll('input[name="reg-consulta-opcion"]');
+      radios.forEach(r => {
+        if(r.value === (p.consultaMedica || 'no')) r.checked = true;
+      });
+      toggleCostoConsultaRegistro(p.consultaMedica || 'no');
+      document.getElementById('reg-costo-consulta').value = p.costoConsulta || '50';
+
+      document.getElementById('titulo-form-paciente').innerText = `Editando Paciente: ${p.nombre}`;
+      document.getElementById('btn-guardar-paciente').innerText = 'Actualizar Paciente';
+      document.getElementById('btn-cancelar-edicion').classList.remove('hidden');
+    }
+
+    function eliminarPacienteGeneral(id) {
+      if(confirm("¿Está seguro de eliminar este paciente del sistema?")) {
+        pacientes = pacientes.filter(p => p.id !== id);
+        apiRequest('/paciente/' + id, { method: 'DELETE' });
+        renderizarListaRegistro();
+        renderizarHistoriasEspera();
+        actualizarSelectTerapias();
+        renderizarAsistencias();
+      }
+    }
+
+    function renderizarListaRegistro() {
+      const cont = document.getElementById('lista-pacientes-registro');
+      cont.innerHTML = pacientes.map(p => `
+        <div class="p-2 rounded border flex justify-between items-center ${p.color}">
+          <div>
+            <p class="font-bold">${p.nombre}</p>
+            <p class="text-[10px]">Ingreso: ${p.fechaIngreso || 'N/A'} | DNI: ${p.dni || 'N/A'}</p>
+          </div>
+          <div class="flex items-center space-x-1">
+            <button onclick="prepararEdicionPaciente(${p.id})" class="p-1 bg-white rounded shadow text-slate-700 hover:text-emerald-600" title="Editar paciente"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button onclick="eliminarPacienteGeneral(${p.id})" class="p-1 bg-white rounded shadow text-red-600 hover:text-red-800" title="Eliminar paciente"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function actualizarSelectHistoriaPacientes(listaFiltrada = pacientes) {
+      const sel = document.getElementById('select-historia-paciente');
+      sel.innerHTML = '<option value="">Seleccionar paciente...</option>' + listaFiltrada.map(p => `<option value="${p.id}">${p.nombre} (DNI: ${p.dni})</option>`).join('');
+    }
+
+    function filtrarHistoriasPorTexto(texto) {
+      const txt = texto.toLowerCase();
+      const filtrados = pacientes.filter(p => p.nombre.toLowerCase().includes(txt) || p.dni.includes(txt));
+      actualizarSelectHistoriaPacientes(filtrados);
+      renderizarHistoriasEsperaFiltradas(filtrados);
+    }
+
+    function renderizarHistoriasEsperaFiltradas(lista) {
+      const cont = document.getElementById('lista-fichas-espera');
+      cont.innerHTML = lista.map(p => `
+        <div class="p-2 rounded border flex justify-between items-center ${p.color}">
+          <div onclick="abrirEditorHistoria(${p.id})" class="cursor-pointer flex-1 hover:opacity-80">
+            <p class="font-bold">${p.nombre}</p>
+            <p class="text-[10px] uppercase font-semibold">${p.reevaluacionRequerida ? '⚠️ REQUIERE REEVALUACIÓN' : 'Paquete Activo: ' + p.paqueteActual}</p>
+          </div>
+          <div class="flex items-center space-x-1.5 ml-2">
+            <button onclick="abrirEditorHistoria(${p.id})" class="p-1 bg-white rounded shadow text-slate-700 hover:text-emerald-600" title="Editar historia"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button onclick="eliminarPacienteHistoria(${p.id})" class="p-1 bg-white rounded shadow text-red-600 hover:text-red-800" title="Eliminar ficha"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function seleccionarPacienteHistoria(id) {
+      if(!id) {
+        document.getElementById('panel-editor-historia').classList.add('hidden');
+        return;
+      }
+      abrirEditorHistoria(parseInt(id));
+    }
+
+    function renderizarHistoriasEspera() {
+      renderizarHistoriasEsperaFiltradas(pacientes);
+    }
+
+    function eliminarPacienteHistoria(id) {
+      if(confirm("¿Está seguro de eliminar esta historia clínica?")) {
+        pacientes = pacientes.filter(p => p.id !== id);
+        renderizarHistoriasEspera();
+        actualizarSelectHistoriaPacientes();
+        document.getElementById('panel-editor-historia').classList.add('hidden');
+      }
+    }
+
+    function abrirEditorHistoria(id) {
+      pacienteActivoId = id;
+      const p = pacientes.find(item => item.id === id);
+      document.getElementById('select-historia-paciente').value = p.id;
+      document.getElementById('panel-editor-historia').classList.remove('hidden');
+      document.getElementById('hc-info-ingreso').innerText = `Fecha de Ingreso: ${p.fechaIngreso || 'N/A'}`;
+
+      document.getElementById('hc-txt-nombre').innerText = p.nombre || '';
+      document.getElementById('hc-txt-dni').innerText = p.dni || '';
+      document.getElementById('hc-txt-edad').innerText = p.edad || '';
+      document.getElementById('hc-txt-celular').innerText = p.celular || '';
+
+      poblarSelectPaquetesHC(p);
+
+      const colorSelect = document.getElementById('hc-color-select');
+      colorSelect.value = p.color || 'color-verde';
+
+      const etiquetaEstado = document.getElementById('hc-etiqueta-estado');
+      let valEstado = p.consultaMedica || 'no';
+      if(valEstado === true) valEstado = 'pre-consulta';
+      
+      if(valEstado === 'pre-consulta') {
+        etiquetaEstado.innerText = "PRE-CONSULTA";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-slate-800 text-white uppercase tracking-wider";
+      } else if(valEstado === 'post-consulta') {
+        etiquetaEstado.innerText = "POST-CONSULTA";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-amber-600 text-white uppercase tracking-wider";
+      } else {
+        etiquetaEstado.innerText = "NO";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-gray-600 text-white uppercase tracking-wider";
+      }
+
+      const radioHC = document.querySelector(`input[name="hc-tiene-consulta"][value="${valEstado}"]`);
+      if(radioHC) {
+        radioHC.checked = true;
+      }
+      
+      if(valEstado === 'pre-consulta' || valEstado === 'post-consulta') {
+        document.getElementById('hc-div-costo-wrapper').classList.remove('hidden');
+        document.getElementById('hc-costo-consulta').value = p.costoConsulta || '50';
+      } else {
+        document.getElementById('hc-div-costo-wrapper').classList.add('hidden');
+      }
+
+      renderizarCamposHCForm(p);
+    }
+
+    function toggleCostoConsultaHC(tipoVal) {
+      const divCosto = document.getElementById('hc-div-costo-wrapper');
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      const etiquetaEstado = document.getElementById('hc-etiqueta-estado');
+      
+      if(p) p.consultaMedica = tipoVal;
+
+      if(tipoVal === 'pre-consulta') {
+        divCosto.classList.remove('hidden');
+        etiquetaEstado.innerText = "PRE-CONSULTA";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-slate-800 text-white uppercase tracking-wider";
+      } else if(tipoVal === 'post-consulta') {
+        divCosto.classList.remove('hidden');
+        etiquetaEstado.innerText = "POST-CONSULTA";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-amber-600 text-white uppercase tracking-wider";
+      } else {
+        divCosto.classList.add('hidden');
+        etiquetaEstado.innerText = "NO";
+        etiquetaEstado.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-gray-600 text-white uppercase tracking-wider";
+        if(p) p.costoConsulta = '0';
+      }
+    }
+
+    function poblarSelectPaquetesHC(p) {
+      const sel = document.getElementById('hc-select-paquete');
+      let paquetesKeys = Object.keys(p.historialClinicoPaquetes || {}).sort((a,b) => parseInt(a) - parseInt(b));
+      if(paquetesKeys.length === 0) {
+        p.historialClinicoPaquetes = { 1: [{ tipo: 'PRE-CONSULTA', fecha: p.fechaIngreso, datos: {} }] };
+        paquetesKeys = ['1'];
+      }
+      sel.innerHTML = paquetesKeys.map(k => `<option value="${k}" ${p.paqueteActual == k ? 'selected' : ''}>Paquete ${k} - Sesión/Historial</option>`).join('');
+    }
+
+    function cambiarPaqueteActivoDesdeSelector(valor) {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      if(p) {
+        p.paqueteActual = valor;
+        renderizarCamposHCForm(p);
+      }
+    }
+
+    function actualizarColorPacienteActivo(nuevoColor) {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      if(p) {
+        p.color = nuevoColor;
+        renderizarHistoriasEspera();
+        renderizarListaRegistro();
+      }
+    }
+
+    function sincronizarCostoConsulta(val) {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      if(p) {
+        p.costoConsulta = val;
+        renderizarFinanzas();
+      }
+    }
+
+    function actualizarDatosHistoriaGeneral() {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      if(p) {
+        sincronizarPacienteConBackend(p);
+      }
+      alert("Datos e historial clínico actualizados correctamente.");
+    }
+
+    function abrirModalColorExtra() {
+      document.getElementById('modal-color-extra').classList.remove('hidden');
+    }
+
+    function cerrarModalColorExtra() {
+      document.getElementById('modal-color-extra').classList.add('hidden');
+    }
+
+    function guardarColorExtra() {
+      const nombre = document.getElementById('input-nombre-color').value.trim();
+      const codigoHex = document.getElementById('input-codigo-color').value;
+      if(!nombre) return alert("Ingrese un nombre para el color.");
+      
+      const estiloId = 'estilo-dinamico-' + Date.now();
+      const claseNombre = 'color-dinamico-' + Date.now();
+      const styleTag = document.createElement('style');
+      styleTag.id = estiloId;
+      styleTag.innerHTML = `.${claseNombre} { background-color: ${codigoHex} !important; border-color: #94a3b8 !important; color: #0f172a !important; }`;
+      document.head.appendChild(styleTag);
+
+      const colorSelect = document.getElementById('hc-color-select');
+      const opt = document.createElement('option');
+      opt.value = claseNombre;
+      opt.innerText = nombre;
+      colorSelect.appendChild(opt);
+
+      cerrarModalColorExtra();
+      alert(`Color "${nombre}" agregado con éxito y disponible en las opciones.`);
+    }
+
+    function renderizarCamposHCForm(p) {
+      const cont = document.getElementById('contenedor-campos-hc');
+      let cp = p.paqueteActual || 1;
+      if(!p.historialClinicoPaquetes[cp]) {
+        p.historialClinicoPaquetes[cp] = [{ tipo: 'PRE-CONSULTA', fecha: new Date().toISOString().split('T')[0], datos: {} }];
+      }
+      let datosPaquete = p.historialClinicoPaquetes[cp][0].datos || {};
+
+      let camposFiltrados = p.camposHC.filter(c => !['Nombre', 'Edad', 'DNI', 'Celular'].includes(c));
+
+      cont.innerHTML = camposFiltrados.map((campo, index) => {
+        let val = datosPaquete[campo] || '';
+        let longitudTexto = val.length;
+        let minAltura = Math.max(80, longitudTexto > 100 ? 140 : 80);
+        
+        return `
+          <div class="bg-gray-50 p-2 rounded border relative col-span-2">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-[10px] font-bold text-gray-600">${campo}</label>
+              <div class="flex space-x-2 no-print">
+                <button type="button" onclick="editarNombreCampoHC(${p.id}, '${campo}')" class="text-blue-600 hover:text-blue-800 text-[10px]" title="Configurar / Editar Subtítulo"><i class="fa-solid fa-pen"></i></button>
+                <button type="button" onclick="eliminarSubtituloHC(${p.id}, '${campo}')" class="text-red-500 hover:text-red-700 text-[10px]" title="Borrar Subtítulo"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            <textarea data-campo="${campo}" oninput="actualizarDatoHCInput(this)" class="w-full p-1.5 border rounded text-xs bg-white auto-expand" style="min-height: ${minAltura}px;" placeholder="Escriba aquí...">${val}</textarea>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function actualizarDatoHCInput(element) {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      if(p) {
+        let cp = p.paqueteActual || 1;
+        if(!p.historialClinicoPaquetes[cp]) p.historialClinicoPaquetes[cp] = [{ tipo: 'PRE-CONSULTA', fecha: new Date().toISOString().split('T')[0], datos: {} }];
+        if(!p.historialClinicoPaquetes[cp][0].datos) p.historialClinicoPaquetes[cp][0].datos = {};
+        p.historialClinicoPaquetes[cp][0].datos[element.dataset.campo] = element.value;
+      }
+    }
+
+    function eliminarSubtituloHC(idPaciente, nombreCampo) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.camposHC.length > 5) {
+        if(confirm("¿Está seguro de borrar este subtítulo/campo?")) {
+          p.camposHC = p.camposHC.filter(c => c !== nombreCampo);
+          renderizarCamposHCForm(p);
+        }
+      } else {
+        alert("Debe mantener al menos los campos esenciales en la historia clínica.");
+      }
+    }
+
+    function editarNombreCampoHC(idPaciente, viejoNombre) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(!p) return;
+      let nuevoNombre = prompt("Modificar nombre del subtítulo:", viejoNombre);
+      if(nuevoNombre && nuevoNombre.trim() !== "") {
+        let idx = p.camposHC.indexOf(viejoNombre);
+        if(idx >= 0) p.camposHC[idx] = nuevoNombre.trim();
+        renderizarCamposHCForm(p);
+      }
+    }
+
+    function guardarHistoriaYPasarATerapias() {
+      const p = pacientes.find(item => item.id === pacienteActivoId);
+      let datosActuales = {};
+      document.querySelectorAll('#contenedor-campos-hc textarea').forEach(inp => {
+        datosActuales[inp.dataset.campo] = inp.value;
+      });
+
+      let cp = p.paqueteActual || 1;
+      if(!p.historialClinicoPaquetes[cp]) p.historialClinicoPaquetes[cp] = [];
+      
+      let radioSel = document.querySelector('input[name="hc-tiene-consulta"]:checked');
+      let tipoConsultaStr = radioSel ? radioSel.value : 'no';
+
+      let entradaHC = p.historialClinicoPaquetes[cp].find(h => h.tipo === tipoConsultaStr || h.tipo === 'PRE-CONSULTA');
+      if(entradaHC) {
+        entradaHC.tipo = tipoConsultaStr;
+        entradaHC.datos = datosActuales;
+        entradaHC.fecha = new Date().toISOString().split('T')[0];
+      } else {
+        p.historialClinicoPaquetes[cp].push({
+          tipo: tipoConsultaStr,
+          fecha: new Date().toISOString().split('T')[0],
+          datos: datosActuales
+        });
+      }
+
+      p.consultaMedica = tipoConsultaStr;
+      p.costoConsulta = (tipoConsultaStr === 'no') ? '0' : (document.getElementById('hc-costo-consulta').value || '50');
+      p.reevaluacionRequerida = false;
+      
+      sincronizarPacienteConBackend(p);
+      alert("Historia clínica guardada y sincronizada correctamente.");
+      cambiarPestaña('terapias');
+      document.getElementById('select-terapia-paciente').value = p.id;
+      cargarFichaTerapias(p.id);
+    }
+
+    function abrirModalCampos() { document.getElementById('modal-campos').classList.remove('hidden'); }
+    function cerrarModalCampos() { document.getElementById('modal-campos').classList.add('hidden'); }
+    function guardarNuevoCampo() {
+      const nombre = document.getElementById('nuevo-campo-nombre').value.trim();
+      if(!nombre) return;
+      camposPredeterminadosHC.push(nombre);
+      pacientes.forEach(p => {
+        if(!p.camposHC.includes(nombre)) p.camposHC.push(nombre);
+      });
+      document.getElementById('nuevo-campo-nombre').value = '';
+      cerrarModalCampos();
+      if(pacienteActivoId) abrirEditorHistoria(pacienteActivoId);
+    }
+
+    function actualizarSelectTerapias(listaFiltrada = pacientes) {
+      const sel = document.getElementById('select-terapia-paciente');
+      sel.innerHTML = '<option value="">Seleccionar paciente...</option>' + listaFiltrada.map(p => `<option value="${p.id}">${p.nombre} (DNI: ${p.dni})</option>`).join('');
+    }
+
+    function filtrarSelectTerapias(texto) {
+      const txt = texto.toLowerCase();
+      const filtrados = pacientes.filter(p => p.nombre.toLowerCase().includes(txt) || p.dni.includes(txt));
+      actualizarSelectTerapias(filtrados);
+    }
+
+    function cargarFichaTerapias(id) {
+      if(!id) return;
+      pacienteActivoId = id;
+      const p = pacientes.find(item => item.id == id);
+      document.getElementById('contenedor-ficha-terapias').classList.remove('hidden');
+      const header = document.getElementById('terapia-header-color');
+      header.className = `p-2 rounded border font-bold flex justify-between items-center flex-wrap gap-2 ${p.color}`;
+      document.getElementById('ter-nombre-paciente-span').innerText = p.nombre;
+      document.getElementById('ter-edad').innerText = p.edad;
+      document.getElementById('ter-dni').innerText = p.dni;
+
+      let tipoAtn = p.tipoAtencion || "PARTICULAR";
+      document.querySelectorAll('input[name="ter-tipo-atencion"]').forEach(radio => {
+        radio.checked = (radio.value === tipoAtn);
+      });
+
+      const selHistFichas = document.getElementById('select-historial-fichas');
+      if(!p.fichasTerapias) p.fichasTerapias = [{ idFicha: 1, paqueteNum: 1, titulo: "Paquete 1 - Sesión Inicial", fecha: new Date().toISOString().split('T')[0], fechaDx: new Date().toISOString().split('T')[0], dx: '', tipoAtencion: tipoAtn, terapias: [], indicacionesExtra: [] }];
+      
+      selHistFichas.innerHTML = p.fichasTerapias.map(f => `<option value="${f.idFicha}">${f.titulo || ('Paquete N° ' + f.paqueteNum)}</option>`).join('');
+
+      let fichaActiva = p.fichasTerapias[p.fichasTerapias.length - 1];
+      selHistFichas.value = fichaActiva.idFicha;
+      llenarDatosFichaTerapia(fichaActiva);
+    }
+
+    function seleccionarFichaPorPaquete(idFicha) {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      if(!p || !p.fichasTerapias) return;
+      let ficha = p.fichasTerapias.find(f => f.idFicha == idFicha);
+      if(ficha) llenarDatosFichaTerapia(ficha);
+    }
+
+    function guardarTipoAtencion(valor) {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      if(p) {
+        p.tipoAtencion = valor;
+        let selId = document.getElementById('select-historial-fichas').value;
+        let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+        if(ficha) ficha.tipoAtencion = valor;
+      }
+    }
+
+    function llenarDatosFichaTerapia(ficha) {
+      document.getElementById('ter-fecha-ficha').value = ficha.fecha || new Date().toISOString().split('T')[0];
+      document.getElementById('ter-fecha-dx').value = ficha.fechaDx || new Date().toISOString().split('T')[0];
+      document.getElementById('ter-descripcion-dx').value = ficha.dx || '';
+
+      if(ficha.tipoAtencion) {
+        document.querySelectorAll('input[name="ter-tipo-atencion"]').forEach(radio => {
+          radio.checked = (radio.value === ficha.tipoAtencion);
+        });
+      }
+
+      let terapiasGuardadas = ficha.terapias || [];
+      document.querySelectorAll('.ter-checkbox-box').forEach((box) => {
+        box.classList.remove('checked');
+        if(terapiasGuardadas.includes(box.dataset.terapiaVal)) {
+          box.classList.add('checked');
+        }
+      });
+
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      p.indicacionesExtra = ficha.indicacionesExtra || [];
+      renderizarIndicacionesExtra();
+    }
+
+    function toggleTerCheck(boxElement, valTerapia) {
+      boxElement.dataset.terapiaVal = valTerapia;
+      boxElement.classList.toggle('checked');
+    }
+
+    function actualizarDatosPaqueteDesdeFicha() {
+      finalizarTerapias();
+      alert("Datos del paquete actualizados y sincronizados exitosamente.");
+    }
+
+    function agregarLineaIndicacion(texto = '') {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      if(!p) return;
+      let selId = document.getElementById('select-historial-fichas').value;
+      let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+      if(ficha) {
+        if(!ficha.indicacionesExtra) ficha.indicacionesExtra = [];
+        ficha.indicacionesExtra.push(texto);
+        renderizarIndicacionesExtra();
+      }
+    }
+
+    function renderizarIndicacionesExtra() {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      const cont = document.getElementById('contenedor-indicaciones-extra');
+      if(!p) return;
+      let selId = document.getElementById('select-historial-fichas').value;
+      let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+      let indList = ficha ? (ficha.indicacionesExtra || []) : [];
+
+      cont.innerHTML = indList.map((ind, idx) => `
+        <div class="flex items-center space-x-2">
+          <textarea oninput="actualizarTextoIndicacion(${idx}, this.value)" placeholder="Escriba indicación adicional del doctor..." class="w-full p-2 border rounded text-xs bg-white" style="min-height: 60px;">${ind}</textarea>
+          <button type="button" onclick="eliminarIndicacionExtra(${idx})" class="text-red-500 hover:text-red-700 px-1 no-print"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    function actualizarTextoIndicacion(idx, val) {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      if(p) {
+        let selId = document.getElementById('select-historial-fichas').value;
+        let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+        if(ficha && ficha.indicacionesExtra) ficha.indicacionesExtra[idx] = val;
+      }
+    }
+
+    function eliminarIndicacionExtra(idx) {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      if(p) {
+        let selId = document.getElementById('select-historial-fichas').value;
+        let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+        if(ficha && ficha.indicacionesExtra) {
+          ficha.indicacionesExtra.splice(idx, 1);
+          renderizarIndicacionesExtra();
+        }
+      }
+    }
+
+    function finalizarTerapias() {
+      const p = pacientes.find(item => item.id == pacienteActivoId);
+      let selId = document.getElementById('select-historial-fichas').value;
+      let ficha = p.fichasTerapias.find(f => f.idFicha == selId);
+      if(ficha) {
+        ficha.fecha = document.getElementById('ter-fecha-ficha').value;
+        ficha.fechaDx = document.getElementById('ter-fecha-dx').value;
+        ficha.dx = document.getElementById('ter-descripcion-dx').value;
+        
+        let seleccionadas = [];
+        document.querySelectorAll('.ter-checkbox-box.checked').forEach(box => {
+          if(box.dataset.terapiaVal) seleccionadas.push(box.dataset.terapiaVal);
+        });
+        ficha.terapias = seleccionadas;
+
+        let tipoSel = document.querySelector('input[name="ter-tipo-atencion"]:checked');
+        if(tipoSel) ficha.tipoAtencion = tipoSel.value;
+        sincronizarPacienteConBackend(p);
+        alert("Ficha de terapia guardada y sincronizada correctamente.");
+      }
+    }
+
+    // Funciones agregadas/actualizadas para control de boleta por cada terapia (1-10)
+    function toggleBoletaTerapia(idPaciente, pKey, numSesion) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia && p.paquetesAsistencia[pKey]) {
+        if(!p.paquetesAsistencia[pKey].boletasTerapias) {
+          p.paquetesAsistencia[pKey].boletasTerapias = {};
+        }
+        let estadoActual = !!p.paquetesAsistencia[pKey].boletasTerapias[numSesion];
+        p.paquetesAsistencia[pKey].boletasTerapias[numSesion] = !estadoActual;
+        renderizarAsistencias();
+      }
+    }
+
+    function renderizarAsistencias() {
+      const cont = document.getElementById('contenedor-asistencias');
+      cont.innerHTML = pacientes.map(p => {
+        if(!p.boletasPaquetes) p.boletasPaquetes = {};
+        if(!p.paqueteActual) p.paqueteActual = 1;
+        if(!p.paquetesAsistencia) {
+          p.paquetesAsistencia = {
+            1: { fechaInicio: p.fechaIngreso || new Date().toISOString().split('T')[0], fechaTermino: '', costo: p.costoTerapia ? (p.costoTerapia * 10).toString() : '400', pagos: [], sesiones: 0, boletasTerapias: {} }
+          };
+        }
+
+        let paquetesAsisHTML = '';
+        let paquetesKeys = Object.keys(p.paquetesAsistencia).sort((a,b) => parseInt(a) - parseInt(b));
+
+        paquetesKeys.forEach(pKey => {
+          let paq = p.paquetesAsistencia[pKey];
+          if(!paq.pagos) paq.pagos = [];
+          if(!paq.boletasTerapias) paq.boletasTerapias = {};
+
+          let botonesSesiones = '';
+          let boletasTerapiasHTML = '';
+
+          for(let i=1; i<=10; i++) {
+            let estiloSesion = i <= paq.sesiones ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700';
+            botonesSesiones += `<button onclick="marcarSesionPaquete(${p.id}, '${pKey}', ${i})" class="w-6 h-6 rounded-full font-bold text-[9px] ${estiloSesion}">${i}</button>`;
+
+            let emitida = !!paq.boletasTerapias[i];
+            let estiloBoleta = emitida ? 'emitida' : '';
+            boletasTerapiasHTML += `<button onclick="toggleBoletaTerapia(${p.id}, '${pKey}', ${i})" class="boleta-terapia-btn ${estiloBoleta}" title="Terapia ${i}: ${emitida ? 'Boleta Emitida (Clic para cambiar)' : 'Sin Boleta (Clic para emitir)'}">${i}</button>`;
+          }
+
+          let pagosHTML = paq.pagos.map((pago, pgIdx) => `
+            <div class="flex items-center space-x-1 text-[10px] bg-white p-1 rounded border flex-wrap gap-1">
+              <span>Fecha: <input type="date" value="${pago.fecha}" onchange="actualizarFechaPago(${p.id}, '${pKey}', ${pgIdx}, this.value)" class="p-0.5 border rounded bg-white"></span>
+              <span>Monto: S/. <input type="number" value="${pago.monto}" onchange="actualizarMontoPago(${p.id}, '${pKey}', ${pgIdx}, this.value)" class="w-14 p-0.5 border rounded bg-white font-bold"></span>
+              <span>Método: 
+                <select onchange="actualizarMetodoPago(${p.id}, '${pKey}', ${pgIdx}, this.value)" class="p-0.5 border rounded bg-white font-bold">
+                  <option value="Efectivo" ${pago.metodo==='Efectivo'?'selected':''}>Efectivo</option>
+                  <option value="Yape" ${pago.metodo==='Yape'?'selected':''}>Yape</option>
+                  <option value="Transferencia" ${pago.metodo==='Transferencia'?'selected':''}>Transferencia</option>
+                  <option value="Seguro" ${pago.metodo==='Seguro'?'selected':''}>Seguro</option>
+                </select>
+              </span>
+              <span>Obs/Detalle: <input type="text" value="${pago.detalleMetodo || ''}" oninput="actualizarDetalleMetodoPago(${p.id}, '${pKey}', ${pgIdx}, this.value)" placeholder="Escribir al lado..." class="w-24 p-0.5 border rounded bg-white"></span>
+              <button onclick="eliminarPagoPaquete(${p.id}, '${pKey}', ${pgIdx})" class="text-red-500 hover:text-red-700 ml-auto"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          `).join('');
+
+          let boletaMarcada = p.boletasPaquetes[pKey] ? 'checked' : '';
+          let tieneConsultaActiva = (p.consultaMedica === 'pre-consulta' || p.consultaMedica === 'post-consulta' || p.consultaMedica === true);
+
+          paquetesAsisHTML += `
+            <div class="border rounded p-3 bg-white/90 space-y-2 mb-3 shadow-sm">
+              <div class="flex justify-between items-center font-bold text-xs text-slate-800 flex-wrap gap-1">
+                <div class="flex items-center space-x-2">
+                  <span>Paquete N°</span>
+                  <input type="text" value="${pKey}" onchange="renombrarPaquete(${p.id}, '${pKey}', this.value)" class="w-16 p-0.5 border rounded text-xs text-center font-bold bg-white" title="Editar número/nombre de paquete">
+                </div>
+                <div class="flex items-center space-x-2">
+                  <label class="text-[10px]">Costo Terapia / Paquete (S/.):</label>
+                  <input type="number" value="${paq.costo || '400'}" onchange="actualizarCostoPaqueteIndividual(${p.id}, '${pKey}', this.value)" class="w-20 p-1 border rounded text-xs text-center font-bold bg-white">
+                </div>
+              </div>
+
+              ${tieneConsultaActiva ? `
+                <div class="flex justify-between items-center bg-emerald-50 p-1.5 rounded border border-emerald-200">
+                  <span class="text-[11px] font-bold text-emerald-800">Costo Consulta Sincronizado: S/. <input type="number" value="${p.costoConsulta || '50'}" onchange="actualizarCostoConsultaGeneral(${p.id}, this.value)" class="w-16 p-0.5 border rounded text-xs font-bold bg-white inline-block"></span>
+                  <label class="flex items-center space-x-1 cursor-pointer font-bold text-[10px] text-emerald-900">
+                    <input type="checkbox" ${boletaMarcada} onchange="toggleBoletaPaquete(${p.id}, '${pKey}', this.checked)" class="w-3.5 h-3.5 text-emerald-600">
+                    <span>Emitió Boleta</span>
+                  </label>
+                </div>
+              ` : `
+                <div class="bg-gray-50 p-1.5 rounded border text-[10px] text-gray-500 font-semibold italic">
+                  Este paquete no tiene consulta médica activa (configurado en Historia Clínica).
+                </div>
+              `}
+
+              <!-- Opción solicitada: Control de Boleta emitida por cada terapia (1-10) -->
+              <div class="bg-slate-50 p-2 rounded border space-y-1">
+                <span class="text-[10px] font-bold text-slate-700 block">Emitió Boleta de cada Terapia (1-10):</span>
+                <div class="flex flex-wrap gap-1 items-center">
+                  ${boletasTerapiasHTML}
+                </div>
+                <span class="text-[9px] text-slate-500 italic block mt-0.5">*(Verde = Boleta emitida / Gris = Sin boleta)*</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <label class="font-semibold text-gray-600">Fecha de Inicio:</label>
+                  <input type="date" value="${paq.fechaInicio || ''}" onchange="actualizarFechasPaquete(${p.id}, '${pKey}', 'inicio', this.value)" class="w-full p-1 border rounded bg-white">
+                </div>
+                <div>
+                  <label class="font-semibold text-gray-600">Fecha de Término:</label>
+                  <input type="date" value="${paq.fechaTermino || ''}" onchange="actualizarFechasPaquete(${p.id}, '${pKey}', 'termino', this.value)" class="w-full p-1 border rounded bg-white">
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <span class="text-[10px] font-semibold text-gray-600 block">Asistencia de Sesiones (1 al 10):</span>
+                <div class="flex space-x-1 flex-wrap gap-1">
+                  ${botonesSesiones}
+                </div>
+              </div>
+
+              <div class="space-y-1 pt-1 border-t">
+                <div class="flex justify-between items-center">
+                  <span class="text-[10px] font-semibold text-gray-600">Pagos Registrados:</span>
+                  <button onclick="agregarPagoPaquete(${p.id}, '${pKey}')" class="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-bold hover:bg-indigo-700">+ Agregar Pago</button>
+                </div>
+                <div class="space-y-1">
+                  ${pagosHTML}
+                </div>
+              </div>
+
+              <div class="flex justify-end space-x-2 pt-1 border-t">
+                <button onclick="abrirModalBoletaPorPaquete(${p.id}, '${pKey}')" class="bg-slate-700 text-white px-2.5 py-1 rounded text-[10px] font-bold hover:bg-slate-800">
+                  <i class="fa-solid fa-receipt mr-1"></i> Ver / Emitir Comprobante
+                </button>
+                <button onclick="eliminarPaqueteAsistencia(${p.id}, '${pKey}')" class="bg-red-50 text-red-600 px-2 py-1 rounded text-[10px] font-bold border border-red-200 hover:bg-red-100">
+                  Eliminar Paquete
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+        return `
+          <div class="bg-white p-4 rounded-xl shadow-md border space-y-3">
+            <div class="flex justify-between items-center border-b pb-2 ${p.color} p-2 rounded">
+              <div>
+                <h3 class="font-bold text-sm">${p.nombre}</h3>
+                <p class="text-[10px]">DNI: ${p.dni || 'N/A'} | Cel: ${p.celular || 'N/A'}</p>
+              </div>
+              <button onclick="agregarNuevoPaqueteAsistencia(${p.id})" class="bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-emerald-700">
+                <i class="fa-solid fa-plus mr-1"></i> Nuevo Paquete
+              </button>
+            </div>
+            <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              ${paquetesAsisHTML}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function marcarSesionPaquete(idPaciente, pKey, numSesion) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia && p.paquetesAsistencia[pKey]) {
+        let paq = p.paquetesAsistencia[pKey];
+        if(paq.sesiones === numSesion) {
+          paq.sesiones = numSesion - 1;
+        } else {
+          paq.sesiones = numSesion;
+        }
+        renderizarAsistencias();
+      }
+    }
+
+    function agregarPagoPaquete(idPaciente, pKey) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia && p.paquetesAsistencia[pKey]) {
+        if(!p.paquetesAsistencia[pKey].pagos) p.paquetesAsistencia[pKey].pagos = [];
+        p.paquetesAsistencia[pKey].pagos.push({
+          fecha: new Date().toISOString().split('T')[0],
+          monto: '100',
+          metodo: 'Efectivo',
+          detalleMetodo: ''
+        });
+        renderizarAsistencias();
+      }
+    }
+
+    function actualizarFechaPago(idPaciente, pKey, pgIdx, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]?.pagos[pgIdx]) {
+        p.paquetesAsistencia[pKey].pagos[pgIdx].fecha = val;
+        renderizarFinanzas();
+      }
+    }
+
+    function actualizarMontoPago(idPaciente, pKey, pgIdx, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]?.pagos[pgIdx]) {
+        p.paquetesAsistencia[pKey].pagos[pgIdx].monto = val;
+        renderizarFinanzas();
+      }
+    }
+
+    function actualizarMetodoPago(idPaciente, pKey, pgIdx, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]?.pagos[pgIdx]) {
+        p.paquetesAsistencia[pKey].pagos[pgIdx].metodo = val;
+      }
+    }
+
+    function actualizarDetalleMetodoPago(idPaciente, pKey, pgIdx, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]?.pagos[pgIdx]) {
+        p.paquetesAsistencia[pKey].pagos[pgIdx].detalleMetodo = val;
+      }
+    }
+
+    function eliminarPagoPaquete(idPaciente, pKey, pgIdx) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]?.pagos) {
+        p.paquetesAsistencia[pKey].pagos.splice(pgIdx, 1);
+        renderizarAsistencias();
+        renderizarFinanzas();
+      }
+    }
+
+    function actualizarCostoPaqueteIndividual(idPaciente, pKey, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]) {
+        p.paquetesAsistencia[pKey].costo = val;
+      }
+    }
+
+    function actualizarCostoConsultaGeneral(idPaciente, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p) {
+        p.costoConsulta = val;
+        renderizarFinanzas();
+      }
+    }
+
+    function toggleBoletaPaquete(idPaciente, pKey, isChecked) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p) {
+        if(!p.boletasPaquetes) p.boletasPaquetes = {};
+        p.boletasPaquetes[pKey] = isChecked;
+      }
+    }
+
+    function actualizarFechasPaquete(idPaciente, pKey, tipo, val) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia[pKey]) {
+        if(tipo === 'inicio') p.paquetesAsistencia[pKey].fechaInicio = val;
+        if(tipo === 'termino') p.paquetesAsistencia[pKey].fechaTermino = val;
+      }
+    }
+
+    function renombrarPaquete(idPaciente, viejoKey, nuevoKey) {
+      nuevoKey = nuevoKey.trim();
+      if(!nuevoKey || viejoKey === nuevoKey) return;
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia) {
+        if(p.paquetesAsistencia[nuevoKey]) {
+          alert("Ya existe un paquete con ese nombre/número.");
+          renderizarAsistencias();
+          return;
+        }
+        p.paquetesAsistencia[nuevoKey] = p.paquetesAsistencia[viejoKey];
+        delete p.paquetesAsistencia[viejoKey];
+        
+        if(p.historialClinicoPaquetes && p.historialClinicoPaquetes[viejoKey]) {
+          p.historialClinicoPaquetes[nuevoKey] = p.historialClinicoPaquetes[viejoKey];
+          delete p.historialClinicoPaquetes[viejoKey];
+        }
+        renderizarAsistencias();
+      }
+    }
+
+    function agregarNuevoPaqueteAsistencia(idPaciente) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p) {
+        if(!p.paquetesAsistencia) p.paquetesAsistencia = {};
+        let keys = Object.keys(p.paquetesAsistencia);
+        let nuevoKey = (keys.length + 1).toString();
+        while(p.paquetesAsistencia[nuevoKey]) {
+          nuevoKey = (parseInt(nuevoKey) + 1).toString();
+        }
+
+        p.paquetesAsistencia[nuevoKey] = {
+          fechaInicio: new Date().toISOString().split('T')[0],
+          fechaTermino: '',
+          costo: '400',
+          pagos: [],
+          sesiones: 0,
+          boletasTerapias: {}
+        };
+
+        if(!p.historialClinicoPaquetes) p.historialClinicoPaquetes = {};
+        p.historialClinicoPaquetes[nuevoKey] = [
+          { tipo: 'PRE-CONSULTA', fecha: new Date().toISOString().split('T')[0], datos: {} }
+        ];
+
+        if(!p.fichasTerapias) p.fichasTerapias = [];
+        p.fichasTerapias.push({
+          idFicha: Date.now(),
+          paqueteNum: nuevoKey,
+          titulo: `Paquete ${nuevoKey} - Tratamiento`,
+          fecha: new Date().toISOString().split('T')[0],
+          fechaDx: new Date().toISOString().split('T')[0],
+          dx: '',
+          tipoAtencion: p.tipoAtencion || 'PARTICULAR',
+          terapias: [],
+          indicacionesExtra: []
+        });
+
+        p.paqueteActual = nuevoKey;
+        renderizarAsistencias();
+        alert(`Se creó el Paquete N° ${nuevoKey} exitosamente.`);
+      }
+    }
+
+    function eliminarPaqueteAsistencia(idPaciente, pKey) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      if(p && p.paquetesAsistencia) {
+        let keys = Object.keys(p.paquetesAsistencia);
+        if(keys.length <= 1) {
+          alert("El paciente debe tener al menos un paquete registrado.");
+          return;
+        }
+        if(confirm(`¿Está seguro de eliminar el Paquete N° ${pKey}?`)) {
+          delete p.paquetesAsistencia[pKey];
+          if(p.historialClinicoPaquetes) delete p.historialClinicoPaquetes[pKey];
+          renderizarAsistencias();
+        }
+      }
+    }
+
+    function abrirModalBoletaPorPaquete(idPaciente, pKey) {
+      const p = pacientes.find(item => item.id === idPaciente);
+      const paq = p.paquetesAsistencia[pKey];
+      const contenido = document.getElementById('contenido-boleta');
+      
+      let pagosStr = (paq.pagos || []).map(pg => `- S/. ${pg.monto} (${pg.metodo}) [${pg.fecha}]`).join('<br>');
+      
+      contenido.innerHTML = `
+        <p><strong>Paciente:</strong> ${p.nombre}</p>
+        <p><strong>DNI:</strong> ${p.dni || 'N/A'}</p>
+        <p><strong>Paquete N°:</strong> ${pKey}</p>
+        <p><strong>Costo Paquete:</strong> S/. ${paq.costo || '0'}</p>
+        <p><strong>Costo Consulta:</strong> S/. ${p.costoConsulta || '0'}</p>
+        <p><strong>Sesiones Realizadas:</strong> ${paq.sesiones} / 10</p>
+        <p><strong>Pagos Registrados:</strong><br>${pagosStr || 'Ninguno'}</p>
+      `;
+      document.getElementById('modal-boleta').classList.remove('hidden');
+    }
+
+    function cerrarModalBoleta() {
+      document.getElementById('modal-boleta').classList.add('hidden');
+    }
+
+    function renderizarInventario() {
+      const grid = document.getElementById('grid-inventario');
+      grid.innerHTML = inventarioItems.map(item => `
+        <div class="border rounded-lg p-3 bg-gray-50 flex flex-col justify-between space-y-2 shadow-sm">
+          <img src="${item.imagen || 'https://via.placeholder.com/150'}" alt="${item.nombre}" class="w-full h-28 object-cover rounded">
+          <div>
+            <h4 class="font-bold text-gray-800">${item.nombre}</h4>
+            <p class="text-xs text-gray-600">Cantidad en Stock: <span class="font-extrabold text-emerald-600">${item.cantidad}</span></p>
+          </div>
+          <div class="flex justify-end space-x-1 pt-1 border-t">
+            <button onclick="editarInventarioItem(${item.id})" class="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><i class="fa-solid fa-pen"></i></button>
+            <button onclick="eliminarInventarioItem(${item.id})" class="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function abrirModalInventario(id = null) {
+      document.getElementById('modal-inventario').classList.remove('hidden');
+      if(id) {
+        let it = inventarioItems.find(x => x.id === id);
+        if(it) {
+          document.getElementById('titulo-modal-inv').innerText = 'Editar Item de Inventario';
+          document.getElementById('inv-id-editando').value = it.id;
+          document.getElementById('inv-nombre').value = it.nombre;
+          document.getElementById('inv-cantidad').value = it.cantidad;
+          document.getElementById('inv-imagen').value = it.imagen;
+        }
+      } else {
+        document.getElementById('titulo-modal-inv').innerText = 'Agregar Item de Inventario';
+        document.getElementById('inv-id-editando').value = '';
+        document.getElementById('inv-nombre').value = '';
+        document.getElementById('inv-cantidad').value = '';
+        document.getElementById('inv-imagen').value = '';
+      }
+    }
+
+    function cerrarModalInventario() {
+      document.getElementById('modal-inventario').classList.add('hidden');
+    }
+
+    function guardarInventarioItem() {
+      const idEdit = document.getElementById('inv-id-editando').value;
+      const nombre = document.getElementById('inv-nombre').value.trim();
+      const cantidad = parseInt(document.getElementById('inv-cantidad').value) || 0;
+      const imagen = document.getElementById('inv-imagen').value.trim();
+
+      if(!nombre) return alert("Ingrese el nombre del artículo.");
+
+      if(idEdit) {
+        let it = inventarioItems.find(x => x.id == idEdit);
+        if(it) {
+          it.nombre = nombre; it.cantidad = cantidad; it.imagen = imagen;
+          apiRequest('/inventario', {
+            method: 'PUT',
+            body: JSON.stringify({ itemId: it.id, nombre, cantidad, imagen })
+          });
+        }
+      } else {
+        const nuevo = { nombre, cantidad, imagen };
+        apiRequest('/inventario', {
+          method: 'POST',
+          body: JSON.stringify(nuevo)
+        }).then(res => {
+          if(res && (res.id || res.itemId)) {
+            inventarioItems.push(res);
+            renderizarInventario();
+          }
+        });
+        inventarioItems.push({ id: Date.now(), nombre, cantidad, imagen });
+      }
+      cerrarModalInventario();
+      renderizarInventario();
+    }
+
+    function editarInventarioItem(id) { abrirModalInventario(id); }
+
+    function eliminarInventarioItem(id) {
+      if(confirm("¿Está seguro de eliminar este artículo del inventario?")) {
+        inventarioItems = inventarioItems.filter(x => x.id !== id);
+        apiRequest('/inventario/' + id, { method: 'DELETE' });
+        renderizarInventario();
+      }
+    }
+
+    function poblarSelectRencuentroAnios() {
+      const sel = document.getElementById('select-rencuentro-anio');
+      sel.innerHTML = aniosDisponibles.map(a => `<option value="${a}" ${a === anioActivo ? 'selected' : ''}>Año: ${a}</option>`).join('');
+    }
+
+    function renderizarRencuentroInventario() {
+      const tbody = document.getElementById('tabla-rencuentro-inventario');
+      tbody.innerHTML = inventarioItems.map(item => `
+        <tr class="border-b text-xs">
+          <td class="p-2 border text-left font-bold">${item.nombre}</td>
+          <td class="p-2 border font-extrabold text-emerald-600">${item.cantidad}</td>
+          <td class="p-2 border"><input type="number" value="${reencuentroInventarioDatos[item.id + '_s1'] || item.cantidad}" oninput="actualizarRencuentro(${item.id}, 's1', this.value)" class="w-16 p-1 border rounded text-center bg-white"></td>
+          <td class="p-2 border"><input type="number" value="${reencuentroInventarioDatos[item.id + '_s2'] || item.cantidad}" oninput="actualizarRencuentro(${item.id}, 's2', this.value)" class="w-16 p-1 border rounded text-center bg-white"></td>
+          <td class="p-2 border"><input type="number" value="${reencuentroInventarioDatos[item.id + '_s3'] || item.cantidad}" oninput="actualizarRencuentro(${item.id}, 's3', this.value)" class="w-16 p-1 border rounded text-center bg-white"></td>
+          <td class="p-2 border"><input type="number" value="${reencuentroInventarioDatos[item.id + '_s4'] || item.cantidad}" oninput="actualizarRencuentro(${item.id}, 's4', this.value)" class="w-16 p-1 border rounded text-center bg-white"></td>
+        </tr>
+      `).join('');
+    }
+
+    function actualizarRencuentro(itemId, sabadoKey, val) {
+      reencuentroInventarioDatos[itemId + '_' + sabadoKey] = val;
+      const mesSelect = document.getElementById('select-rencuentro-mes');
+      const mesNombre = mesSelect ? mesSelect.value : 'agosto';
+      const mesesMap = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+      apiRequest('/reencuentro-inventario/actualizar', {
+        method: 'POST',
+        body: JSON.stringify({
+          itemId: itemId,
+          sabadoKey: sabadoKey,
+          cantidad: parseInt(val) || 0,
+          anio: anioActivo,
+          mes: mesesMap[mesNombre] || 8
+        })
+      });
+    }
+
+    function cambiarAnioFinanzas(val) {
+      anioFinanzasActivo = parseInt(val);
+      renderizarFinanzas();
+    }
+
+    function cambiarMesFinanzas(val) {
+      mesFinanzasActivo = val;
+      renderizarFinanzas();
+    }
+
+    function renderizarFinanzas() {
+      const selAnio = document.getElementById('select-anio-finanzas');
+      selAnio.innerHTML = aniosDisponibles.map(a => `<option value="${a}" ${a === anioFinanzasActivo ? 'selected' : ''}>${a}</option>`).join('');
+
+      document.getElementById('select-mes-finanzas').value = mesFinanzasActivo;
+
+      let totalMes = 0;
+      let cajaHoyMonto = 0;
+      let hoyStr = new Date().toISOString().split('T')[0];
+
+      let listaHoyHTML = [];
+      let listaMesHTML = [];
+
+      let mesesIndexMap = { enero: '1', febrero: '2', marzo: '3', abril: '4', mayo: '5', junio: '6', julio: '7', agosto: '8', septiembre: '9', octubre: '10', noviembre: '11', diciembre: '12' };
+      let mesNumEsperado = mesesIndexMap[mesFinanzasActivo];
+
+      pacientes.forEach(p => {
+        let consultaVal = parseFloat(p.costoConsulta) || 0;
+        if(consultaVal > 0 && p.fechaIngreso) {
+          let [yC, mC, dC] = p.fechaIngreso.split('-');
+          if(parseInt(yC) === anioFinanzasActivo && mC === mesNumEsperado) {
+            totalMes += consultaVal;
+            listaMesHTML.push(`Consulta Paciente: ${p.nombre} (+S/. ${consultaVal})`);
+            if(p.fechaIngreso === hoyStr) {
+              cajaHoyMonto += consultaVal;
+              listaHoyHTML.push(`Consulta: ${p.nombre} (S/. ${consultaVal})`);
+            }
+          }
+        }
+
+        if(p.paquetesAsistencia) {
+          Object.values(p.paquetesAsistencia).forEach(paq => {
+            if(paq.pagos) {
+              paq.pagos.forEach(pg => {
+                let montoPg = parseFloat(pg.monto) || 0;
+                if(pg.fecha && montoPg > 0) {
+                  let [yP, mP, dP] = pg.fecha.split('-');
+                  if(parseInt(yP) === anioFinanzasActivo && mP === mesNumEsperado) {
+                    totalMes += montoPg;
+                    listaMesHTML.push(`Paquete (${pg.metodo}): ${p.nombre} (+S/. ${montoPg})`);
+                    if(pg.fecha === hoyStr) {
+                      cajaHoyMonto += montoPg;
+                      listaHoyHTML.push(`Paquete (${pg.metodo}): ${p.nombre} (S/. ${montoPg})`);
+                    }
+                  }
+                }
+              });
+            }
+          });
+        }
+      });
+
+      document.getElementById('span-total-mes-seleccionado').innerText = `S/. ${totalMes.toFixed(2)}`;
+      
+      const cajaHoyCont = document.getElementById('caja-hoy-contenido');
+      cajaHoyCont.innerHTML = `<p class="font-bold text-emerald-700 text-sm mb-1">Total Hoy: S/. ${cajaHoyMonto.toFixed(2)}</p>` + 
+        (listaHoyHTML.length > 0 ? listaHoyHTML.map(x => `<div>• ${x}</div>`).join('') : '<p class="text-gray-400 italic">No hay ingresos registrados hoy.</p>');
+
+      const cajaMesCont = document.getElementById('caja-mes-contenido');
+      cajaMesCont.innerHTML = `<p class="font-bold text-blue-700 text-sm mb-1">Total Mes (${mesFinanzasActivo.toUpperCase()} ${anioFinanzasActivo}): S/. ${totalMes.toFixed(2)}</p>` +
+        (listaMesHTML.length > 0 ? listaMesHTML.map(x => `<div>• ${x}</div>`).join('') : '<p class="text-gray-400 italic">No hay ingresos registrados este mes.</p>');
+
+      actualizarGraficoVentas(totalMes);
+    }
+
+    function actualizarGraficoVentas(totalMes) {
+      const ctx = document.getElementById('graficoVentasMes').getContext('2d');
+      if(graficoVentasInstancia) {
+        graficoVentasInstancia.destroy();
+      }
+
+      let dataSemanal = [totalMes * 0.2, totalMes * 0.3, totalMes * 0.25, totalMes * 0.25];
+
+      graficoVentasInstancia = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
+          datasets: [{
+            label: `Ventas en ${mesFinanzasActivo.toUpperCase()} (S/.)`,
+            data: dataSemanal,
+            borderColor: '#059669',
+            backgroundColor: 'rgba(5, 150, 105, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    window.onload = async function() {
+      cambiarPestaña('agenda');
+      await cargarDatosDesdeBackend();
+    };
+  </script>
+</body>
+</html>

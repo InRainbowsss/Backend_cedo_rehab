@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: cedo_rehab_db
+    environment:
+      POSTGRES_DB: db_cedo_rehab
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgre
+    ports:
+      - "5433:5432"
+    volumes:
+      - cedo_rehab_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: cedo_rehab_backend
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/db_cedo_rehab
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgre
+      IP_FRONTEND: http://localhost:8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  cedo_rehab_pgdata:
